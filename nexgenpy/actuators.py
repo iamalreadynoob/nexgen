@@ -6,11 +6,10 @@ It contains the decorators for the actuators.
 import inspect
 import logging
 import os
-from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, Dict, List, Literal, get_type_hints
 
-from pymongo import MongoClient
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -58,34 +57,11 @@ def actuator(
                 logger.error("requirements is invalid, it has to be str")
                 raise ValueError("requirements is invalid, it has to be str")
 
-            client = MongoClient(os.getenv("NEXGEN_MONGO_CONNSTR"))
-            db = client[os.getenv("NEXGEN_MONGO_DBNAME")]
-
-            current_collection = (
-                os.getenv("NEXGEN_MONGO_C_COLNAME")
-                if atype == "coding"
-                else os.getenv("NEXGEN_MONGO_D_COLNAME")
-            )
-
-            logger.info(f"MongoDB collection selected: {current_collection}")
-
-            if current_collection not in db.list_collection_names():
-                db.create_collection(current_collection)
-
-            is_exist = db[current_collection].count_documents(
-                {
-                    "name": name,
-                    "version": version,
-                },
-            )
-
-            if is_exist != 0:
-                return None
-
             sample: Dict[str, Any] = {
                 "name": name,
                 "version": version,
-                "is_latest": is_latest,
+                "actuator_type": atype,
+                "set_latest": is_latest,
                 "requirements": requirements,
             }
 
@@ -111,13 +87,45 @@ def actuator(
 
             sample["method"] = source_code
             sample["method_args"] = arguments
-            sample["created_at"] = datetime.now(UTC).isoformat()
 
-            result = db[current_collection].insert_one(sample)
+            base_url: str = os.getenv("NEXGEN_BASE_URL")
+            if base_url is None:
+                base_url = "http://localhost:8000/api/v1"
 
-            if result.inserted_id is not None:
-                logger.warning("Actuator creation has been failed")
-                return None
-            else:
-                logger.info("Actuator has been created")
-                return result.inserted_id
+            api_key: str | None = os.getenv("NEXGEN_API_KEY")
+            headers: Dict[str, str] = {}
+
+            if api_key is not None:
+                headers["X-API-KEY"] = api_key
+
+            request_timeout: int = os.getenv("NEXGEN_TIMEOUT")
+            if (
+                request_timeout is None
+                or isinstance(request_timeout, (int, float)) is False
+            ):
+                request_timeout = 60
+
+            result = None
+            try:
+                result = requests.post(
+                    f"{base_url}/actuators",
+                    headers=headers,
+                    json=sample,
+                    timeout=request_timeout,
+                )
+            except Exception as e:
+                logger.warning(e)
+
+            if result is not None:
+                if result.ok is True:
+                    logger.info(
+                        "POST /actuators succeeded: status=%d, response=%s",
+                        result.status_code,
+                        result.text,
+                    )
+                else:
+                    logger.warning(
+                        "POST /actuators failed: status=%d, response=%s",
+                        result.status_code,
+                        result.text,
+                    )

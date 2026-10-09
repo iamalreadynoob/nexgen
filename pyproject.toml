@@ -14,8 +14,7 @@ authors=[
 dependencies = [
     "build>=1.6.1",
     "pre-commit>=4.6.2",
-    "pydantic>=2.13.5",
-    "pymongo>=4.18.2",
+    "requests>=2.34.2",
     "ruff>=0.16.10",
 ]
 
