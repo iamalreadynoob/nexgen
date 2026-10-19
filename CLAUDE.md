@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`nexgenpy` is a Python (>=3.12) client library for a separate Nexgen API server ("Post Shannon Communication for every day systems"). The server is not in this repo. There are no tests and no README yet; `pyproject.toml` references a `README.md` that does not exist.
+`nexgenpy` is a Python (>=3.12) client library for a separate Nexgen API server ("Post Shannon Communication for every day systems"). The server is not in this repo. There is no README yet; `pyproject.toml` references a `README.md` that does not exist.
 
 ## Commands
 
@@ -12,6 +12,8 @@ Dependencies are managed with `uv` (`uv.lock`). `requirements.txt` mirrors the p
 
 ```bash
 uv sync                          # create .venv and install deps
+uv run pytest                    # run tests (tests/)
+uv run pytest -m "not integration"  # skip the tests that build real venvs
 uv run ruff check .              # lint (strict rule set, see pyproject.toml)
 uv run ruff check --fix .        # autofix
 uv run ruff format .             # format

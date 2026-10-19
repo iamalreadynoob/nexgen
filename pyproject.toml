@@ -61,6 +61,7 @@ allowed-confusables = ["ı"]
 
 [tool.ruff.lint.per-file-ignores]
 "test*" = ["D", "ANN"]
+"tests/**" = ["D", "ANN", "S101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -71,3 +72,14 @@ indent-style = "space"
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: creates real venvs and runs pip (slow)",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
