@@ -3,6 +3,7 @@
 It manages the essential works for the actuators.
 """
 
+import asyncio
 import importlib.util
 import inspect
 import json
@@ -21,6 +22,273 @@ import requests
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "http://localhost:8000/api/v1"
+
+
+class Actuator:
+    """# Actuator.
+
+    It runs the actuator like run_actuator. It loads the method only once, in the
+    constructor, so the next runs do not import method.py again.
+
+    Attributes:
+        name (str): Name of the actuator.
+        actuators_dir (str): Located directory for the actuators.
+        dst (str | None): It pushes the data given endpoint if they have an
+            nexgen compatible endpoint.
+        dst_timeout (int): Timeout for the sending destination endpoint.
+        dst_headers (Dict[str, Any]): Required headers for the destination
+            endpoint.
+        dst_save_original (bool): It saves the original data too with lazy upload.
+        actuator_id (str | None): The server id of the actuator. It is None if dst
+            is None.
+        method (Callable[..., Any]): The function inside method.py.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        actuators_dir: str = "nexgen_actuators",
+        dst: str | None = None,
+        dst_timeout: int = 60,
+        dst_headers: Dict[str, Any] | None = None,
+        dst_save_original: bool = True,
+        try_load_actuator: bool = True,
+    ) -> None:
+        # Checking The Datatypes
+        if isinstance(name, str) is False:
+            logger.error("name is invalid, it has to be str")
+            raise ValueError("name is invalid, it has to be str")
+
+        if isinstance(actuators_dir, str) is False:
+            logger.error("actuators_dir is invalid, it has to be str")
+            raise ValueError("actuators_dir is invalid, it has to be str")
+
+        if dst is not None and isinstance(dst, str) is False:
+            logger.error("dst is invalid, it has to be str")
+            raise ValueError("dst is invalid, it has to be str")
+
+        if isinstance(dst_timeout, int) is False:
+            logger.error("dst_timeout is invalid, it has to be int")
+            raise ValueError("dst_timeout is invalid, it has to be int")
+
+        if dst_headers is not None and isinstance(dst_headers, dict) is False:
+            logger.error("dst_headers is invalid, it has to be Dict[str, Any]")
+            raise ValueError("dst_headers is invalid, it has to be Dict[str, Any]")
+
+        if isinstance(dst_save_original, bool) is False:
+            logger.error("dst_save_original is invalid, it has to be bool")
+            raise ValueError("dst_save_original is invalid, it has to be bool")
+
+        if isinstance(try_load_actuator, bool) is False:
+            logger.error("try_load_actuator is invalid, it has to be bool")
+            raise ValueError("try_load_actuator is invalid, it has to be bool")
+
+        if Path(f"{actuators_dir}/{name}").exists() is False:
+            logger.warning(f"Actuator: {name} does not exist")
+            if try_load_actuator is False:
+                logger.error(f"Actuator {name} has to be downloaded first")
+                raise ValueError(f"Actuator {name} has to be downloaded first")
+            else:
+                load_actuator(
+                    name=name,
+                    actuators_dir=actuators_dir,
+                )
+
+        file_path = Path(f"{actuators_dir}/{name}/method.py").resolve()
+
+        spec = importlib.util.spec_from_file_location(
+            file_path.stem,
+            file_path,
+        )
+
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load module: {file_path}")
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Find functions defined in this file
+        methods = [
+            obj
+            for _, obj in inspect.getmembers(module, inspect.isfunction)
+            if obj.__module__ == module.__name__
+        ]
+
+        if len(methods) != 1:
+            raise ValueError(
+                f"Expected exactly one function, found {len(methods)}",
+            )
+
+        actuator_id = None
+        if dst is not None:
+            with open(f"{actuators_dir}/{name}/card.json", "r") as f:
+                actuator_id = json.load(f)["id"]
+
+        self.name = name
+        self.actuators_dir = actuators_dir
+        self.dst = dst
+        self.dst_timeout = dst_timeout
+        self.dst_headers = dst_headers if dst_headers is not None else {}
+        self.dst_save_original = dst_save_original
+        self.actuator_id = actuator_id
+        self.method = methods[0]
+
+    def run(
+        self,
+        data: Dict[str, Any],
+        data_specs: Dict[str, Any] | None = None,
+    ) -> object:
+        """# Run.
+
+        It runs the loaded method with the data. If dst is given, it also sends
+        the output to the destination endpoint.
+
+        Args:
+            data (Dict[str, Any]): Input data for the actuator.
+            data_specs (Dict[str, Any] | None, optional): Contains the extra
+                information about the data.
+
+        Returns:
+            object: The output coming from actuator.
+
+        Raises:
+            ValueError: If data or data_specs is invalid.
+        """
+        # Checking The Datatypes
+        if isinstance(data, dict) is False:
+            logger.error("data is invalid, it has to be Dict[str, Any]")
+            raise ValueError("data is invalid, it has to be Dict[str, Any]")
+
+        if data_specs is not None and isinstance(data_specs, dict) is False:
+            logger.error("data_specs is invalid, it has to be Dict[str, Any]")
+            raise ValueError("data_specs is invalid, it has to be Dict[str, Any]")
+
+        output = self.method(**data)
+
+        if self.dst is None:
+            return output
+
+        linked_resource: str | None = None
+        if self.dst_save_original is True:
+            linked_resource = str(uuid4())
+
+            # Lazy upload, so the main process does not wait for it
+            threading.Thread(
+                target=_send_content,
+                kwargs={
+                    "url": f"{self.dst}/content",
+                    "headers": self.dst_headers,
+                    "timeout": self.dst_timeout,
+                    "identifier": linked_resource,
+                    "specs": data,
+                },
+            ).start()
+
+        result = requests.post(
+            url=f"{self.dst}/data",
+            headers=self.dst_headers,
+            json={
+                "actuator_id": self.actuator_id,
+                "metadata": output,
+                "linked_resource": linked_resource,
+                "specs": data_specs,
+            },
+            timeout=self.dst_timeout,
+        )
+
+        if result.ok is True:
+            logger.info(
+                "POST /data succeeded: status=%d, response=%s",
+                result.status_code,
+                result.text,
+            )
+        else:
+            logger.warning(
+                "POST /data failed: status=%d, response=%s",
+                result.status_code,
+                result.text,
+            )
+
+        return output
+
+    async def arun(
+        self,
+        data: Dict[str, Any],
+        data_specs: Dict[str, Any] | None = None,
+    ) -> object:
+        """# Async Run.
+
+        It is the async version of run. It runs the loaded method and the POST
+        /data request in a worker thread, so they do not block the event loop.
+
+        Args:
+            data (Dict[str, Any]): Input data for the actuator.
+            data_specs (Dict[str, Any] | None, optional): Contains the extra
+                information about the data.
+
+        Returns:
+            object: The output coming from actuator.
+
+        Raises:
+            ValueError: If data or data_specs is invalid.
+        """
+        # Checking The Datatypes
+        if isinstance(data, dict) is False:
+            logger.error("data is invalid, it has to be Dict[str, Any]")
+            raise ValueError("data is invalid, it has to be Dict[str, Any]")
+
+        if data_specs is not None and isinstance(data_specs, dict) is False:
+            logger.error("data_specs is invalid, it has to be Dict[str, Any]")
+            raise ValueError("data_specs is invalid, it has to be Dict[str, Any]")
+
+        output = await asyncio.to_thread(self.method, **data)
+
+        if self.dst is None:
+            return output
+
+        linked_resource: str | None = None
+        if self.dst_save_original is True:
+            linked_resource = str(uuid4())
+
+            # Lazy upload, so the main process does not wait for it
+            threading.Thread(
+                target=_send_content,
+                kwargs={
+                    "url": f"{self.dst}/content",
+                    "headers": self.dst_headers,
+                    "timeout": self.dst_timeout,
+                    "identifier": linked_resource,
+                    "specs": data,
+                },
+            ).start()
+
+        result = await asyncio.to_thread(
+            requests.post,
+            url=f"{self.dst}/data",
+            headers=self.dst_headers,
+            json={
+                "actuator_id": self.actuator_id,
+                "metadata": output,
+                "linked_resource": linked_resource,
+                "specs": data_specs,
+            },
+            timeout=self.dst_timeout,
+        )
+
+        if result.ok is True:
+            logger.info(
+                "POST /data succeeded: status=%d, response=%s",
+                result.status_code,
+                result.text,
+            )
+        else:
+            logger.warning(
+                "POST /data failed: status=%d, response=%s",
+                result.status_code,
+                result.text,
+            )
+
+        return output
 
 
 def _send_content(
