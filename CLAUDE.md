@@ -32,7 +32,7 @@ The library is about **actuators**: single Python functions whose source code is
   - The default `actuators_dir` is `nexgen_actuators`, relative to the working directory.
 
 Environment variables:
-- `NEXGEN_BASE_URL`: API root. The decorator falls back to `http://localhost:8000/api/v1`. `load_actuator` has no fallback.
+- `NEXGEN_BASE_URL`: API root. The decorator and `load_actuator` fall back to `http://localhost:8000/api/v1`.
 - `NEXGEN_API_KEY`: sent as the `X-API-KEY` header when set.
 - `NEXGEN_TIMEOUT`: decorator request timeout (default 60).
 

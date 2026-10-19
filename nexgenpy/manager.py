@@ -11,21 +11,74 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict
+from uuid import uuid4
 
 import requests
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_BASE_URL = "http://localhost:8000/api/v1"
+
+
+def _send_content(
+    url: str,
+    headers: Dict[str, Any],
+    timeout: int,
+    identifier: str,
+    specs: Dict[str, Any],
+) -> None:
+    """# Send Content.
+
+    It sends the original data to the content endpoint. It runs in a background
+    thread, so it logs the errors and does not raise them.
+
+    Args:
+        url (str): The content endpoint.
+        headers (Dict[str, Any]): Headers for the content endpoint.
+        timeout (int): Timeout for the content endpoint.
+        identifier (str): The linked resource of the data.
+        specs (Dict[str, Any]): The original data.
+    """
+    try:
+        result = requests.post(
+            url=url,
+            headers=headers,
+            json={
+                "identifier": identifier,
+                "specs": specs,
+            },
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        logger.warning("POST /content failed: %s", e)
+        return
+
+    if result.ok is True:
+        logger.info(
+            "POST /content succeeded: status=%d, response=%s",
+            result.status_code,
+            result.text,
+        )
+    else:
+        logger.warning(
+            "POST /content failed: status=%d, response=%s",
+            result.status_code,
+            result.text,
+        )
+
 
 def run_actuator(
     name: str,
     data: Dict[str, Any],
+    data_specs: Dict[str, Any] | None = None,
     actuators_dir: str = "nexgen_actuators",
     dst: str | None = None,
     dst_timeout: int = 60,
     dst_headers: Dict[str, Any] | None = None,
+    dst_save_original: bool = True,
     try_load_actuator: bool = True,
 ) -> object:
     """# Run Actuator.
@@ -35,12 +88,15 @@ def run_actuator(
     Args:
         name (str): Name of the actuator.
         data (Dict[str, Any]): Input data for the actuator.
+        data_specs (Dict[str, Any] | None): Contains the extra information about the
+            data.
         actuators_dir (str, optional): Located directory for the actuators.
         dst (str | None, optional): It pushes the data given endpoint if they have an
             nexgen compatible endpoint.
         dst_timeout (int, optional): Timeout for the sending destination endpoint.
         dst_headers (Dict[str, Any] | None, optional): Required headers for the
             destination endpoint, if needed.
+        dst_save_original (bool): It saves the original data too with lazy upload.
         try_load_actuator (bool, optional): It tries to download the actuator first
             if it is does not exist locally.
 
@@ -55,6 +111,10 @@ def run_actuator(
     if isinstance(data, dict) is False:
         logger.error("data is invalid, it has to be Dict[str, Any]")
         raise ValueError("data is invalid, it has to be Dict[str, Any]")
+
+    if data_specs is not None and isinstance(data_specs, dict) is False:
+        logger.error("data_specs is invalid, it has to be Dict[str, Any]")
+        raise ValueError("data_specs is invalid, it has to be Dict[str, Any]")
 
     if isinstance(actuators_dir, str) is False:
         logger.error("actuators_dir is invalid, it has to be str")
@@ -72,6 +132,10 @@ def run_actuator(
         logger.error("dst_headers is invalid, it has to be Dict[str, Any]")
         raise ValueError("dst_headers is invalid, it has to be Dict[str, Any]")
 
+    if isinstance(dst_save_original, bool) is False:
+        logger.error("dst_save_original is invalid, it has to be bool")
+        raise ValueError("dst_save_original is invalid, it has to be bool")
+
     if isinstance(try_load_actuator, bool) is False:
         logger.error("try_load_actuator is invalid, it has to be bool")
         raise ValueError("try_load_actuator is invalid, it has to be bool")
@@ -87,58 +151,85 @@ def run_actuator(
                 actuators_dir=actuators_dir,
             )
 
-        file_path = Path(f"{actuators_dir}/{name}/method.py").resolve()
+    file_path = Path(f"{actuators_dir}/{name}/method.py").resolve()
 
-        spec = importlib.util.spec_from_file_location(
-            file_path.stem,
-            file_path,
+    spec = importlib.util.spec_from_file_location(
+        file_path.stem,
+        file_path,
+    )
+
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module: {file_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # Find functions defined in this file
+    methods = [
+        obj
+        for _, obj in inspect.getmembers(module, inspect.isfunction)
+        if obj.__module__ == module.__name__
+    ]
+
+    if len(methods) != 1:
+        raise ValueError(
+            f"Expected exactly one function, found {len(methods)}",
         )
 
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load module: {file_path}")
+    method = methods[0]
+    output = method(**data)
 
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+    if dst is None:
+        return output
 
-        # Find functions defined in this file
-        methods = [
-            obj
-            for _, obj in inspect.getmembers(module, inspect.isfunction)
-            if obj.__module__ == module.__name__
-        ]
+    if dst_headers is None:
+        dst_headers = {}
 
-        if len(methods) != 1:
-            raise ValueError(
-                f"Expected exactly one function, found {len(methods)}",
-            )
+    with open(f"{actuators_dir}/{name}/card.json", "r") as f:
+        actuator_id = json.load(f)["id"]
 
-        method = methods[0]
-        output = method(**data)
+    linked_resource: str | None = None
+    if dst_save_original is True:
+        linked_resource = str(uuid4())
 
-        if dst is None:
-            return output
-
-        if dst_headers is None:
-            dst_headers = {}
-
-        with open(f"{actuators_dir}/{name}/card.json", "r") as f:
-            actuator_id = json.load(f)["id"]
-
-        result = requests.post(
-            url=f"{dst}/data",
-            headers=dst_headers,
-            json={
-                "actuator_id": actuator_id,
-                "metadata": output,
+        # Lazy upload, so the main process does not wait for it
+        threading.Thread(
+            target=_send_content,
+            kwargs={
+                "url": f"{dst}/content",
+                "headers": dst_headers,
+                "timeout": dst_timeout,
+                "identifier": linked_resource,
+                "specs": data,
             },
-            timeout=dst_timeout,
-        )
+        ).start()
 
+    result = requests.post(
+        url=f"{dst}/data",
+        headers=dst_headers,
+        json={
+            "actuator_id": actuator_id,
+            "metadata": output,
+            "linked_resource": linked_resource,
+            "specs": data_specs,
+        },
+        timeout=dst_timeout,
+    )
+
+    if result.ok is True:
         logger.info(
             "POST /data succeeded: status=%d, response=%s",
             result.status_code,
             result.text,
         )
+    else:
+        logger.warning(
+            "POST /data failed: status=%d, response=%s",
+            result.status_code,
+            result.text,
+        )
+
+    return output
 
 
 def load_actuator(
@@ -174,6 +265,12 @@ def load_actuator(
         logger.error("update_actuator is invalid, it has to be bool")
         raise ValueError("update_actuator is invalid, it has to be bool")
 
+    # The name has to point to a directory directly inside actuators_dir
+    actuators_path = Path(actuators_dir).resolve()
+    if (actuators_path / name).resolve().parent != actuators_path:
+        logger.error("name is invalid, it has to be a plain directory name")
+        raise ValueError("name is invalid, it has to be a plain directory name")
+
     if update_actuator is False and Path(f"{actuators_dir}/{name}").exists() is True:
         logger.info(f"Actuator {name} already exists")
         return
@@ -183,7 +280,7 @@ def load_actuator(
         headers["X-API-KEY"] = os.getenv("NEXGEN_API_KEY")
 
     result = requests.get(
-        f"{os.getenv('NEXGEN_BASE_URL')}/actuators/{name}/latest",
+        f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/actuators/{name}/latest",
         headers=headers,
         timeout=load_timeout,
     )
@@ -197,6 +294,18 @@ def load_actuator(
     )
 
     response = result.json()
+
+    card_path = Path(f"{actuators_dir}/{name}/card.json")
+    if card_path.exists() is True:
+        with open(card_path, "r") as f:
+            existing_card = json.load(f)
+
+        if (
+            existing_card.get("id") == response["id"]
+            and existing_card.get("version") == response["version"]
+        ):
+            logger.info(f"Actuator {name} is already up to date")
+            return
 
     if Path(f"{actuators_dir}/{name}").exists():
         logger.info("Existing directory has been found")
@@ -220,16 +329,6 @@ def load_actuator(
     requirements = "\n".join(response["requirements"])
     method = response["method"]
 
-    with open(f"{actuators_dir}/{name}/card.json", "w") as f:
-        json.dump(
-            card,
-            f,
-            indent=4,
-            ensure_ascii=True,
-        )
-
-    logger.info("card.json has been created")
-
     with open(f"{actuators_dir}/{name}/method.py", "w") as f:
         f.write(method)
 
@@ -248,13 +347,30 @@ def load_actuator(
     logger.info(".venv has been created")
     logger.info("requirements are being downloaded...")
 
+    if sys.platform == "win32":
+        pip_path = f"{actuators_dir}/{name}/.venv/Scripts/pip.exe"
+    else:
+        pip_path = f"{actuators_dir}/{name}/.venv/bin/pip"
+
     subprocess.run(  # noqa: S603
         [
-            f"{actuators_dir}/{name}/.venv/bin/pip",
+            pip_path,
             "install",
             "-r",
             f"{actuators_dir}/{name}/requirements.txt",
         ],
+        check=True,
     )
 
-    logger.info("requirements. downloaded")
+    logger.info("requirements downloaded")
+
+    # card.json is written last, so a failed load is not seen as up to date
+    with open(f"{actuators_dir}/{name}/card.json", "w") as f:
+        json.dump(
+            card,
+            f,
+            indent=4,
+            ensure_ascii=True,
+        )
+
+    logger.info("card.json has been created")
