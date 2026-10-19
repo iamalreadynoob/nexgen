@@ -3,15 +3,64 @@
 It contains the decorators for the actuators.
 """
 
+import ast
 import inspect
 import logging
 import os
+import textwrap
 from functools import wraps
-from typing import Any, Dict, List, Literal, get_type_hints
+from typing import Any, Callable, Dict, List, Literal, get_type_hints
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_BASE_URL = "http://localhost:8000/api/v1"
+DEFAULT_TIMEOUT = 60
+
+
+def _function_source(func: Callable[..., Any]) -> str:
+    """# Function Source.
+
+    It returns the source code of the function without its decorators, so the
+    downloaded method.py does not need to import them.
+
+    Args:
+        func (Callable[..., Any]): The decorated function.
+
+    Returns:
+        str: The source code that starts at the `def` line.
+    """
+    source = textwrap.dedent(inspect.getsource(func))
+    node = ast.parse(source).body[0]
+    lines = source.splitlines(keepends=True)
+    return "".join(lines[node.lineno - 1 :])
+
+
+def _request_timeout() -> float:
+    """# Request Timeout.
+
+    Returns:
+        float: The value of NEXGEN_TIMEOUT, or the default if it is not valid.
+    """
+    raw_timeout = os.getenv("NEXGEN_TIMEOUT")
+    if raw_timeout is None:
+        return DEFAULT_TIMEOUT
+
+    try:
+        timeout = float(raw_timeout)
+    except ValueError:
+        timeout = 0
+
+    if timeout <= 0:
+        logger.warning(
+            "NEXGEN_TIMEOUT is invalid: %r, using %d",
+            raw_timeout,
+            DEFAULT_TIMEOUT,
+        )
+        return DEFAULT_TIMEOUT
+
+    return timeout
 
 
 def actuator(
@@ -20,112 +69,116 @@ def actuator(
     version: str,
     is_latest: bool,
     requirements: List[str] | None,
-) -> bool:
+) -> Callable[[Callable[..., Any]], Callable[..., bool]]:
     """# Actuator.
 
-    It holds the information for the actuator.
+    It holds the information for the actuator. A call to the decorated function
+    publishes the actuator to the Nexgen API.
+
+    Args:
+        name (str): Name of the actuator.
+        atype (Literal["coding", "decoding"]): Type of the actuator.
+        version (str): Version of the actuator.
+        is_latest (bool): If it is true, the server marks this version as latest.
+        requirements (List[str] | None): Pip requirements of the actuator.
+
+    Returns:
+        Callable[[Callable[..., Any]], Callable[..., bool]]: The decorator.
     """
+    # Checking The Datatypes
+    if isinstance(name, str) is False:
+        logger.error("name is invalid, it has to be str")
+        raise ValueError("name is invalid, it has to be str")
 
-    def decorator(func):  # noqa: ANN001, ANN202
+    if atype not in ["coding", "decoding"]:
+        logger.error("atype is invalid, it has to be either coding or decoding")
+        raise ValueError("atype is invalid, it has to be either coding or decoding")
+
+    if isinstance(version, str) is False:
+        logger.error("version is invalid, it has to be str")
+        raise ValueError("version is invalid, it has to be str")
+
+    if isinstance(is_latest, bool) is False:
+        logger.error("is_latest is invalid, it has to be bool")
+        raise ValueError("is_latest is invalid, it has to be bool")
+
+    if requirements is not None and (
+        isinstance(requirements, list) is False
+        or all(isinstance(r, str) for r in requirements) is False
+    ):
+        logger.error("requirements is invalid, it has to be List[str]")
+        raise ValueError("requirements is invalid, it has to be List[str]")
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., bool]:
         """# Decorator Method."""
+        signature = inspect.signature(func)
+        type_hints = get_type_hints(func)
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202, ARG001
-            """# Wrapper Method.."""
-            if isinstance(name, str) is False:
-                logger.error("name is invalid, it has to be str")
-                raise ValueError("name is invalid, it has to be str")
+        arguments = {}
 
-            if atype not in ["coding", "decoding"]:
-                logger.error("name is invalid, it has to be either coding or decoding")
-                raise ValueError(
-                    "name is invalid, it has to be either coding or decoding",
-                )
+        for parameter_name, parameter in signature.parameters.items():
+            annotation = type_hints.get(parameter_name)
 
-            if isinstance(version, str) is False:
-                logger.error("version is invalid, it has to be str")
-                raise ValueError("version is invalid, it has to be str")
-
-            if isinstance(is_latest, bool) is False:
-                logger.error("is_latest is invalid, it has to be bool")
-                raise ValueError("is_latest is invalid, it has to be bool")
-
-            if requirements is not None and (
-                isinstance(requirements, list) is False
-                or all(isinstance(r, str) for r in requirements) is False
-            ):
-                logger.error("requirements is invalid, it has to be str")
-                raise ValueError("requirements is invalid, it has to be str")
-
-            sample: Dict[str, Any] = {
-                "name": name,
-                "version": version,
-                "actuator_type": atype,
-                "set_latest": is_latest,
-                "requirements": requirements,
+            arguments[parameter_name] = {
+                "type": str(annotation) if annotation else None,
+                "default": (
+                    str(parameter.default)
+                    if parameter.default is not inspect.Parameter.empty
+                    else None
+                ),
             }
 
-            source_code = inspect.getsource(func)
+        sample: Dict[str, Any] = {
+            "name": name,
+            "version": version,
+            "actuator_type": atype,
+            "set_latest": is_latest,
+            "requirements": requirements if requirements is not None else [],
+            "method": _function_source(func),
+            "method_args": arguments,
+        }
 
-            signature = inspect.signature(func)
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> bool:  # noqa: ANN401, ARG001
+            """# Wrapper Method.
 
-            type_hints = get_type_hints(func)
+            Returns:
+                bool: True if the server accepted the actuator, else False.
+            """
+            base_url = os.getenv("NEXGEN_BASE_URL", DEFAULT_BASE_URL)
 
-            arguments = {}
-
-            for parameter_name, parameter in signature.parameters.items():
-                annotation = type_hints.get(parameter_name)
-
-                arguments[parameter_name] = {
-                    "type": str(annotation) if annotation else None,
-                    "default": (
-                        str(parameter.default)
-                        if parameter.default is not inspect.Parameter.empty
-                        else None
-                    ),
-                }
-
-            sample["method"] = source_code
-            sample["method_args"] = arguments
-
-            base_url: str = os.getenv("NEXGEN_BASE_URL")
-            if base_url is None:
-                base_url = "http://localhost:8000/api/v1"
-
-            api_key: str | None = os.getenv("NEXGEN_API_KEY")
+            api_key = os.getenv("NEXGEN_API_KEY")
             headers: Dict[str, str] = {}
 
             if api_key is not None:
                 headers["X-API-KEY"] = api_key
 
-            request_timeout: int = os.getenv("NEXGEN_TIMEOUT")
-            if (
-                request_timeout is None
-                or isinstance(request_timeout, (int, float)) is False
-            ):
-                request_timeout = 60
-
-            result = None
             try:
                 result = requests.post(
                     f"{base_url}/actuators",
                     headers=headers,
                     json=sample,
-                    timeout=request_timeout,
+                    timeout=_request_timeout(),
                 )
-            except Exception as e:
-                logger.warning(e)
+            except requests.RequestException as e:
+                logger.warning("POST /actuators failed: %s", e)
+                return False
 
-            if result is not None:
-                if result.ok is True:
-                    logger.info(
-                        "POST /actuators succeeded: status=%d, response=%s",
-                        result.status_code,
-                        result.text,
-                    )
-                else:
-                    logger.warning(
-                        "POST /actuators failed: status=%d, response=%s",
-                        result.status_code,
-                        result.text,
-                    )
+            if result.ok is True:
+                logger.info(
+                    "POST /actuators succeeded: status=%d, response=%s",
+                    result.status_code,
+                    result.text,
+                )
+                return True
+
+            logger.warning(
+                "POST /actuators failed: status=%d, response=%s",
+                result.status_code,
+                result.text,
+            )
+            return False
+
+        return wrapper
+
+    return decorator
