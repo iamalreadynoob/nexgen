@@ -70,6 +70,9 @@ flowchart LR
 - **Semantic-level communication.** The decoding actuator recreates the source, or its meaning, from the received representation.
 - **Goal-oriented (task-oriented) communication.** The decoding actuator identifies the input or does a task with it, for example classification. It does not recreate the source.
 
+> [!TIP]
+> Do you use [Claude Code](https://claude.com/claude-code)? The [nexgenpy skill](https://github.com/iamalreadynoob/nexgenpy-skill) gives Claude Code the knowledge to use `nexgenpy` in your projects. Install it to get help when you register, load and use actuators.
+
 ## Setup
 
 ### Requirements
