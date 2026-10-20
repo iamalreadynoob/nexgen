@@ -27,7 +27,8 @@ exclude = [
     ".gitignore",
     "requirements.txt",
     "uv.lock",
-    ".claude/skills"
+    ".claude/skills",
+    "docs"
 ]
 
 [tool.ruff.lint]
