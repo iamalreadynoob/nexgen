@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import textwrap
+import threading
 import time
 import types
 import uuid
@@ -59,6 +60,13 @@ def write_actuator(
     directory.mkdir(parents=True)
     (directory / "method.py").write_text(textwrap.dedent(method))
     (directory / "requirements.txt").write_text("")
+    # A fake venv: its python is the test interpreter, so no venv is built
+    if os.name == "nt":
+        python = directory / ".venv" / "Scripts" / "python.exe"
+    else:
+        python = directory / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
     if card is None:
         card = {"id": ACTUATOR_ID, "name": name, "version": "1.0.0"}
     (directory / "card.json").write_text(json.dumps(card))
@@ -75,16 +83,32 @@ def sync_threads(monkeypatch) -> list[dict[str, Any]]:
     """Run the lazy content upload in the calling thread.
 
     Only the manager's reference to threading is replaced, so asyncio.to_thread
-    keeps working. It returns the kwargs of every started thread.
+    keeps working. Other threads, like the stderr reader of the Actuator
+    workers, still run in a real thread. It returns the kwargs of every started
+    upload thread.
     """
     started: list[dict[str, Any]] = []
+    real_thread = threading.Thread
 
     class SyncThread:
-        def __init__(self, target: Any, kwargs: dict[str, Any]) -> None:
+        def __init__(
+            self,
+            target: Any,
+            kwargs: dict[str, Any] | None = None,
+            **options: Any,
+        ) -> None:
             self.target = target
-            self.kwargs = kwargs
+            self.kwargs = kwargs or {}
+            self.options = options
 
         def start(self) -> None:
+            if self.target is not manager._send_content:
+                real_thread(
+                    target=self.target,
+                    kwargs=self.kwargs,
+                    **self.options,
+                ).start()
+                return
             started.append(self.kwargs)
             self.target(**self.kwargs)
 
@@ -437,7 +461,7 @@ def test_run_requires_exactly_one_function(actuators_dir, method, count):
 def test_run_propagates_method_errors(actuators_dir):
     write_actuator(actuators_dir)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(RuntimeError, match="TypeError"):
         run_actuator("doubler", data={"y": 1}, actuators_dir=str(actuators_dir))
 
 
@@ -600,6 +624,26 @@ def test_send_content_swallows_request_errors(fake_post, caplog):
 # ===========================================================================
 
 
+@pytest.fixture
+def make_actuator():
+    """Build Actuators and close them after the test, so no worker is left."""
+    created: list[Actuator] = []
+
+    def make(*args: Any, **kwargs: Any) -> Actuator:
+        act = Actuator(*args, **kwargs)
+        created.append(act)
+        return act
+
+    yield make
+
+    for act in created:
+        act.close()
+
+
+def worker_procs(act: Actuator) -> list[Any]:
+    return [worker._proc for worker in act._pool]
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -610,6 +654,8 @@ def test_send_content_swallows_request_errors(fake_post, caplog):
         ("dst_headers", "h"),
         ("dst_save_original", "no"),
         ("try_load_actuator", 0),
+        ("workers", 0),
+        ("workers", "2"),
     ],
 )
 def test_actuator_invalid_arguments(actuators_dir, field: str, value: Any):
@@ -622,10 +668,10 @@ def test_actuator_invalid_arguments(actuators_dir, field: str, value: Any):
         Actuator(**kwargs)
 
 
-def test_actuator_attributes(actuators_dir):
+def test_actuator_attributes(actuators_dir, make_actuator):
     write_actuator(actuators_dir)
 
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
     assert act.name == "doubler"
     assert act.actuators_dir == str(actuators_dir)
@@ -634,13 +680,14 @@ def test_actuator_attributes(actuators_dir):
     assert act.dst_headers == {}
     assert act.dst_save_original is True
     assert act.actuator_id is None
-    assert act.method.__name__ == "double"
+    assert act.method_name == "double"
+    assert act.workers == 1
 
 
-def test_actuator_reads_id_only_with_dst(actuators_dir):
+def test_actuator_reads_id_only_with_dst(actuators_dir, make_actuator):
     write_actuator(actuators_dir)
 
-    act = Actuator(
+    act = make_actuator(
         "doubler",
         actuators_dir=str(actuators_dir),
         dst="https://dst.example",
@@ -664,13 +711,13 @@ def test_actuator_missing_without_loading_raises(actuators_dir):
         Actuator("doubler", actuators_dir=str(actuators_dir), try_load_actuator=False)
 
 
-def test_actuator_loads_missing_actuator(actuators_dir, monkeypatch):
+def test_actuator_loads_missing_actuator(actuators_dir, monkeypatch, make_actuator):
     def fake_load(**kwargs: Any) -> None:
         write_actuator(Path(kwargs["actuators_dir"]), name=kwargs["name"])
 
     monkeypatch.setattr(manager, "load_actuator", fake_load)
 
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
     assert act.run({"x": 3}) == {"value": 6}
 
@@ -682,14 +729,149 @@ def test_actuator_requires_exactly_one_function(actuators_dir):
         Actuator("doubler", actuators_dir=str(actuators_dir))
 
 
-def test_actuator_imports_method_only_once(actuators_dir):
+def test_actuator_imports_method_only_once(actuators_dir, make_actuator):
     directory = write_actuator(actuators_dir)
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
     (directory / "method.py").write_text("def changed(x):\n    return x\n")
 
     assert act.run({"x": 2}) == {"value": 4}
     assert act.run({"x": 5}) == {"value": 10}
+
+
+def test_actuator_runs_in_the_actuator_venv(actuators_dir, make_actuator):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        def where():
+            import sys
+
+            return sys.executable
+        """,
+    )
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+
+    venv = actuators_dir / "doubler" / ".venv"
+    assert act.run({}) == str(manager._venv_python(venv))
+
+
+def test_actuator_method_print_does_not_break_protocol(actuators_dir, make_actuator):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        def loud(x):
+            print("hello from the actuator")
+            return x + 1
+        """,
+    )
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+
+    assert act.run({"x": 1}) == 2
+    assert act.run({"x": 2}) == 3
+
+
+def test_actuator_method_error_keeps_worker_alive(actuators_dir, make_actuator):
+    write_actuator(actuators_dir)
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+    procs = worker_procs(act)
+
+    with pytest.raises(RuntimeError, match="TypeError"):
+        act.run({"y": 1})
+
+    assert act.run({"x": 1}) == {"value": 2}
+    assert worker_procs(act) == procs
+
+
+def test_actuator_unpicklable_output_keeps_worker_alive(actuators_dir, make_actuator):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        def make(x):
+            if x == 0:
+                return lambda: x
+            return x
+        """,
+    )
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+
+    with pytest.raises(RuntimeError, match="failed"):
+        act.run({"x": 0})
+
+    assert act.run({"x": 1}) == 1
+
+
+def test_actuator_replaces_crashed_worker(actuators_dir, make_actuator):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        def crash(x):
+            import os
+
+            if x == 0:
+                os._exit(3)
+            return x
+        """,
+    )
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+    old_proc = worker_procs(act)[0]
+
+    with pytest.raises(RuntimeError, match="exit code 3"):
+        act.run({"x": 0})
+
+    assert act.run({"x": 5}) == 5
+    assert len(act._pool) == 1
+    assert worker_procs(act)[0] is not old_proc
+
+
+def test_actuator_import_error_raises_and_leaves_no_worker(actuators_dir, monkeypatch):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        import module_that_does_not_exist
+
+
+        def f(x):
+            return x
+        """,
+    )
+    started: list[Any] = []
+    real_worker = manager._Worker
+
+    def tracking_worker(*args: Any) -> Any:
+        worker = real_worker(*args)
+        started.append(worker)
+        return worker
+
+    monkeypatch.setattr(manager, "_Worker", tracking_worker)
+
+    with pytest.raises(RuntimeError, match="module_that_does_not_exist"):
+        Actuator("doubler", actuators_dir=str(actuators_dir), workers=2)
+
+    assert len(started) == 2
+    assert all(worker._proc.poll() is not None for worker in started)
+
+
+def test_actuator_close_stops_workers(actuators_dir):
+    write_actuator(actuators_dir)
+    act = Actuator("doubler", actuators_dir=str(actuators_dir), workers=2)
+    procs = worker_procs(act)
+
+    act.close()
+    act.close()
+
+    assert all(proc.poll() is not None for proc in procs)
+    with pytest.raises(RuntimeError, match="closed"):
+        act.run({"x": 1})
+
+
+def test_actuator_context_manager_closes(actuators_dir):
+    write_actuator(actuators_dir)
+
+    with Actuator("doubler", actuators_dir=str(actuators_dir)) as act:
+        assert act.run({"x": 1}) == {"value": 2}
+        procs = worker_procs(act)
+
+    assert all(proc.poll() is not None for proc in procs)
 
 
 @pytest.mark.parametrize("runner", ["run", "arun"])
@@ -699,13 +881,14 @@ def test_actuator_imports_method_only_once(actuators_dir):
 )
 def test_actuator_run_invalid_arguments(
     actuators_dir,
+    make_actuator,
     runner,
     data,
     data_specs,
     field,
 ):
     write_actuator(actuators_dir)
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
     with pytest.raises(ValueError, match=f"{field} is invalid"):
         result = getattr(act, runner)(data, data_specs)
@@ -726,18 +909,18 @@ def runner(request) -> str:
     return request.param
 
 
-def test_actuator_run_without_dst(actuators_dir, fake_post, runner):
+def test_actuator_run_without_dst(actuators_dir, make_actuator, fake_post, runner):
     write_actuator(actuators_dir)
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
     assert run_method(act, runner, {"x": 7}) == {"value": 14}
     assert fake_post.calls == []
 
 
 @pytest.mark.usefixtures("sync_threads")
-def test_actuator_run_with_dst(actuators_dir, fake_post, runner):
+def test_actuator_run_with_dst(actuators_dir, make_actuator, fake_post, runner):
     write_actuator(actuators_dir)
-    act = Actuator(
+    act = make_actuator(
         "doubler",
         actuators_dir=str(actuators_dir),
         dst="https://dst.example",
@@ -765,12 +948,13 @@ def test_actuator_run_with_dst(actuators_dir, fake_post, runner):
 
 def test_actuator_run_with_dst_without_saving_original(
     actuators_dir,
+    make_actuator,
     fake_post,
     sync_threads,
     runner,
 ):
     write_actuator(actuators_dir)
-    act = Actuator(
+    act = make_actuator(
         "doubler",
         actuators_dir=str(actuators_dir),
         dst="https://dst.example",
@@ -785,20 +969,30 @@ def test_actuator_run_with_dst_without_saving_original(
 
 
 @pytest.mark.usefixtures("sync_threads")
-def test_actuator_run_logs_failed_data_post(actuators_dir, fake_post, runner, caplog):
+def test_actuator_run_logs_failed_data_post(
+    actuators_dir,
+    make_actuator,
+    fake_post,
+    runner,
+    caplog,
+):
     write_actuator(actuators_dir)
     fake_post.response.status_code = 503
     fake_post.response.ok = False
-    act = Actuator("doubler", actuators_dir=str(actuators_dir), dst="https://d")
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir), dst="https://d")
 
     assert run_method(act, runner, {"x": 1}) == {"value": 2}
     assert "POST /data failed: status=503" in caplog.text
 
 
 @pytest.mark.usefixtures("sync_threads")
-def test_actuator_runs_get_a_new_linked_resource_each_time(actuators_dir, fake_post):
+def test_actuator_runs_get_a_new_linked_resource_each_time(
+    actuators_dir,
+    make_actuator,
+    fake_post,
+):
     write_actuator(actuators_dir)
-    act = Actuator("doubler", actuators_dir=str(actuators_dir), dst="https://d")
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir), dst="https://d")
 
     act.run({"x": 1})
     act.run({"x": 1})
@@ -807,7 +1001,7 @@ def test_actuator_runs_get_a_new_linked_resource_each_time(actuators_dir, fake_p
     assert first != second
 
 
-def test_actuator_arun_runs_concurrently(actuators_dir):
+def test_actuator_arun_runs_concurrently(actuators_dir, make_actuator):
     write_actuator(
         actuators_dir,
         method="""\
@@ -819,7 +1013,7 @@ def test_actuator_arun_runs_concurrently(actuators_dir):
             return x
         """,
     )
-    act = Actuator("doubler", actuators_dir=str(actuators_dir))
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir), workers=5)
 
     async def main() -> list[object]:
         return await asyncio.gather(*(act.arun({"x": i}) for i in range(5)))
@@ -830,6 +1024,31 @@ def test_actuator_arun_runs_concurrently(actuators_dir):
 
     assert results == [0, 1, 2, 3, 4]
     assert elapsed < 0.2 * 5
+
+
+def test_actuator_single_worker_runs_one_call_at_a_time(actuators_dir, make_actuator):
+    write_actuator(
+        actuators_dir,
+        method="""\
+        import time
+
+
+        def slow(x):
+            time.sleep(0.2)
+            return x
+        """,
+    )
+    act = make_actuator("doubler", actuators_dir=str(actuators_dir))
+
+    async def main() -> list[object]:
+        return await asyncio.gather(*(act.arun({"x": i}) for i in range(3)))
+
+    start = time.perf_counter()
+    results = asyncio.run(main())
+    elapsed = time.perf_counter() - start
+
+    assert sorted(results) == [0, 1, 2]
+    assert elapsed >= 0.2 * 3
 
 
 # ===========================================================================
@@ -854,3 +1073,14 @@ def test_load_and_run_end_to_end(fake_get, actuators_dir):
         try_load_actuator=False,
     )
     assert output == {"value": 42}
+
+
+@pytest.mark.integration
+def test_load_and_run_actuator_class_end_to_end(fake_get, actuators_dir):
+    fake_get.response.payload = api_response(requirements=[])
+
+    load_actuator("doubler", actuators_dir=str(actuators_dir))
+
+    with Actuator("doubler", actuators_dir=str(actuators_dir), workers=2) as act:
+        assert act.run({"x": 21}) == {"value": 42}
+        assert asyncio.run(act.arun({"x": 1})) == {"value": 2}
