@@ -73,6 +73,9 @@ flowchart LR
 > [!TIP]
 > Do you use [Claude Code](https://claude.com/claude-code)? The [nexgenpy skill](https://github.com/iamalreadynoob/nexgenpy-skill) gives Claude Code the knowledge to use `nexgenpy` in your projects. Install it to get help when you register, load and use actuators.
 
+> [!TIP]
+> You can find the example usecase scenario for Nexgen inside the [nexgen example](https://github.com/iamalreadynoob/nexgen-example)
+
 ## Setup
 
 ### Requirements
