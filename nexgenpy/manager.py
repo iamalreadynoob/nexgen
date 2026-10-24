@@ -176,7 +176,7 @@ class Actuator:
             threading.Thread(
                 target=_send_content,
                 kwargs={
-                    "url": f"{self.dst}/content",
+                    "url": f"{self.dst}/contents",
                     "headers": self.dst_headers,
                     "timeout": self.dst_timeout,
                     "identifier": linked_resource,
@@ -254,7 +254,7 @@ class Actuator:
             threading.Thread(
                 target=_send_content,
                 kwargs={
-                    "url": f"{self.dst}/content",
+                    "url": f"{self.dst}/contents",
                     "headers": self.dst_headers,
                     "timeout": self.dst_timeout,
                     "identifier": linked_resource,
@@ -321,18 +321,18 @@ def _send_content(
             timeout=timeout,
         )
     except requests.RequestException as e:
-        logger.warning("POST /content failed: %s", e)
+        logger.warning("POST /contents failed: %s", e)
         return
 
     if result.ok is True:
         logger.info(
-            "POST /content succeeded: status=%d, response=%s",
+            "POST /contents succeeded: status=%d, response=%s",
             result.status_code,
             result.text,
         )
     else:
         logger.warning(
-            "POST /content failed: status=%d, response=%s",
+            "POST /contents failed: status=%d, response=%s",
             result.status_code,
             result.text,
         )
@@ -464,7 +464,7 @@ def run_actuator(
         threading.Thread(
             target=_send_content,
             kwargs={
-                "url": f"{dst}/content",
+                "url": f"{dst}/contents",
                 "headers": dst_headers,
                 "timeout": dst_timeout,
                 "identifier": linked_resource,
@@ -569,7 +569,7 @@ def load_actuator(
             existing_card = json.load(f)
 
         if (
-            existing_card.get("id") == response["id"]
+            existing_card.get("id") == response["_id"]
             and existing_card.get("version") == response["version"]
         ):
             logger.info(f"Actuator {name} is already up to date")
@@ -584,7 +584,7 @@ def load_actuator(
     logger.info(f"New directory has been created: {actuators_dir}/{name}")
 
     card = {
-        "id": response["id"],
+        "id": response["_id"],
         "name": response["name"],
         "version": response["version"],
         "actuator_type": response["actuator_type"],

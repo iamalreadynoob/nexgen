@@ -132,9 +132,9 @@ def test_payload_method_args(fake_post):
     make_actuator()(sample_method)()
 
     assert fake_post.last["json"]["method_args"] == {
-        "x": {"type": str(int), "default": None},
+        "x": {"type": str(int)},
         "scale": {"type": str(float), "default": "2.0"},
-        "label": {"type": None, "default": "out"},
+        "label": {"default": "out"},
     }
 
 

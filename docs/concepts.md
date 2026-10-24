@@ -116,7 +116,7 @@ Nexgen versions help the two sides use the same actuator:
 | Item | What it stores | How `nexgenpy` makes it |
 |---|---|---|
 | **Data** | The output of an actuator (`metadata`), the `actuator_id`, an optional `linked_resource` and free-form `specs` | `run_actuator(..., dst=...)` sends `POST {dst}/data` |
-| **Content** | An `identifier` and the original input of the actuator in `specs` | `run_actuator(..., dst=..., dst_save_original=True)` sends `POST {dst}/content` |
+| **Content** | An `identifier` and the original input of the actuator in `specs` | `run_actuator(..., dst=..., dst_save_original=True)` sends `POST {dst}/contents` |
 
 When `dst_save_original` is `True`, the library makes a random UUID. It uses the UUID as the content `identifier` and as the data `linked_resource`. Thus an application can find the original input of each output. For example, it can compare a reconstruction with its source, or train a model again.
 

@@ -47,7 +47,7 @@ The request body has these fields:
 | `set_latest` | `is_latest` |
 | `requirements` | `requirements`, or `[]` if it is `None` |
 | `method` | The source of the function, from the `def` line. The decorator removes the decorator lines. |
-| `method_args` | For each parameter: `{"type": str(annotation) or None, "default": str(default) or None}` |
+| `method_args` | For each parameter: `{"type": str(annotation), "default": str(default)}`. A key is left out when the parameter has no type hint or no default, because the server accepts only string values. |
 
 ## Load: `load_actuator`
 
@@ -97,7 +97,7 @@ sequenceDiagram
     opt dst is given
         Lib->>FS: read the id from card.json
         opt dst_save_original is True
-            Lib--)Dst: POST {dst}/content (background thread)
+            Lib--)Dst: POST {dst}/contents (background thread)
         end
         Lib->>Dst: POST {dst}/data
     end
@@ -129,7 +129,7 @@ nexgen_actuators/
     "name": "keyword-extractor",
     "version": "1.0.0",
     "actuator_type": "coding",
-    "method_args": {"text": {"type": "<class 'str'>", "default": null}},
+    "method_args": {"text": {"type": "<class 'str'>"}},
     "latest": true,
     "created_at": "…",
     "updated_at": "…"

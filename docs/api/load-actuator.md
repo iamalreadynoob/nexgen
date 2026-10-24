@@ -35,7 +35,7 @@ Downloads the latest version of an actuator from Nexgen Server. It writes the ac
 1. Check the arguments.
 2. If `update_actuator` is `False` and `{actuators_dir}/{name}` exists, stop.
 3. Send `GET {NEXGEN_BASE_URL}/actuators/{name}/latest`.
-4. If the local `card.json` has the same `id` and `version` as the response, stop.
+4. If the local `card.json` has the same `id` and `version` as the response (`_id` and `version`), stop.
 5. Delete the old `{actuators_dir}/{name}` directory, if it exists.
 6. Write `method.py` and `requirements.txt`.
 7. Make a virtual environment in `{actuators_dir}/{name}/.venv`.
@@ -62,13 +62,13 @@ The function writes `card.json` last. If step 7 or step 8 fails, the next call d
 |---|---|
 | `X-API-KEY` | `NEXGEN_API_KEY`, only if it is set |
 
-The function uses these fields of the response: `id`, `name`, `version`, `actuator_type`, `method_args`, `latest`, `created_at`, `updated_at`, `requirements` and `method`.
+The function uses these fields of the response: `_id`, `name`, `version`, `actuator_type`, `method_args`, `latest`, `created_at`, `updated_at`, `requirements` and `method`.
 
 ## Files
 
 | File | Content |
 |---|---|
-| `card.json` | `id`, `name`, `version`, `actuator_type`, `method_args`, `latest`, `created_at`, `updated_at` |
+| `card.json` | `id` (the `_id` field of the response), `name`, `version`, `actuator_type`, `method_args`, `latest`, `created_at`, `updated_at` |
 | `method.py` | The `method` field |
 | `requirements.txt` | The `requirements` field, one item on each line |
 | `.venv/` | A virtual environment with the requirements |

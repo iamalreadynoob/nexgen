@@ -34,7 +34,7 @@ Nexgen Server needs the `X-API-Key` header on all endpoints except health when t
 | `POST /actuators` | `NEXGEN_API_KEY` |
 | `GET /actuators/{name}/latest` | `NEXGEN_API_KEY` |
 | `POST {dst}/data` | `dst_headers` |
-| `POST {dst}/content` | `dst_headers` |
+| `POST {dst}/contents` | `dst_headers` |
 
 The data and content requests do not use `NEXGEN_API_KEY`. The `dst` server can be a different server with a different key. To send data to Nexgen Server, give the key yourself:
 
@@ -57,7 +57,7 @@ run_actuator(
 |---|---|---|
 | `POST /actuators` | `NEXGEN_TIMEOUT` environment variable | 60 s |
 | `GET /actuators/{name}/latest` | `load_timeout` parameter of `load_actuator` | 60 s |
-| `POST {dst}/data`, `POST {dst}/content` | `dst_timeout` parameter of `run_actuator` and `Actuator` | 60 s |
+| `POST {dst}/data`, `POST {dst}/contents` | `dst_timeout` parameter of `run_actuator` and `Actuator` | 60 s |
 
 The venv and pip steps of `load_actuator` have no timeout.
 

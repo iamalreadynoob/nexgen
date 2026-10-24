@@ -89,7 +89,7 @@ The requests go only to `dst`. They use `dst_headers`, not `NEXGEN_API_KEY`.
 }
 ```
 
-`POST {dst}/content`, only if `dst_save_original` is `True`:
+`POST {dst}/contents`, only if `dst_save_original` is `True`:
 
 ```json
 {

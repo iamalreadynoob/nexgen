@@ -58,7 +58,7 @@ flowchart LR
     NS -. "2. load" .-> DA
     CA -- "3. use: transmitted representation" --> DA
     CA -. "data item<br/>POST /data" .-> NS
-    S -. "content item (original)<br/>POST /content" .-> NS
+    S -. "content item (original)<br/>POST /contents" .-> NS
 ```
 
 1. A developer writes a Python function and registers it as an actuator with a name and a version.

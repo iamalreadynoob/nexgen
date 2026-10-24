@@ -114,19 +114,20 @@ def actuator(
         signature = inspect.signature(func)
         type_hints = get_type_hints(func)
 
-        arguments = {}
+        arguments: Dict[str, Dict[str, str]] = {}
 
+        # The server accepts only str values, so missing info is left out
         for parameter_name, parameter in signature.parameters.items():
             annotation = type_hints.get(parameter_name)
+            argument: Dict[str, str] = {}
 
-            arguments[parameter_name] = {
-                "type": str(annotation) if annotation else None,
-                "default": (
-                    str(parameter.default)
-                    if parameter.default is not inspect.Parameter.empty
-                    else None
-                ),
-            }
+            if annotation is not None:
+                argument["type"] = str(annotation)
+
+            if parameter.default is not inspect.Parameter.empty:
+                argument["default"] = str(parameter.default)
+
+            arguments[parameter_name] = argument
 
         sample: Dict[str, Any] = {
             "name": name,

@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Actuator.arun` method that runs the actuator without a block on the `asyncio` event loop.
 - `dst` argument that sends the actuator output to `POST {dst}/data`.
 - `dst_headers` and `dst_timeout` arguments for the requests to `dst`.
-- `dst_save_original` argument, `True` by default, that also sends the input data to `POST {dst}/content` in the background.
+- `dst_save_original` argument, `True` by default, that also sends the input data to `POST {dst}/contents` in the background.
 - `data_specs` argument that sends extra information about the input data to `POST {dst}/data`.
 - `NEXGEN_BASE_URL` environment variable for the API root, with `http://localhost:8000/api/v1` as the default.
 - `NEXGEN_API_KEY` environment variable that the client sends in the `X-API-KEY` header.

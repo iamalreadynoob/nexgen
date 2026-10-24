@@ -76,7 +76,7 @@ Body:
     "requirements": [],
     "method": "def extract(text: str, max_words: int = 5) -> dict:\n    ...",
     "method_args": {
-        "text": {"type": "<class 'str'>", "default": null},
+        "text": {"type": "<class 'str'>"},
         "max_words": {"type": "<class 'int'>", "default": "5"}
     }
 }

@@ -36,7 +36,7 @@ Do these steps to decrease the risk:
 
 ## Data and privacy
 
-When `dst` is given and `dst_save_original` is `True`, `run_actuator` sends the **original input** to `{dst}/content`. If the input is private, set `dst_save_original=False`, or use a `dst` server that you control.
+When `dst` is given and `dst_save_original` is `True`, `run_actuator` sends the **original input** to `{dst}/contents`. If the input is private, set `dst_save_original=False`, or use a `dst` server that you control.
 
 The output of a coding actuator can also contain private information. See the next section.
 

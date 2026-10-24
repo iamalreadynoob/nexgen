@@ -34,11 +34,11 @@ def double(x: int, factor: int = 2) -> dict:
 def api_response(**overrides: Any) -> dict[str, Any]:
     """A GET /actuators/{name}/latest response body."""
     return {
-        "id": ACTUATOR_ID,
+        "_id": ACTUATOR_ID,
         "name": "doubler",
         "version": "1.0.0",
         "actuator_type": "coding",
-        "method_args": {"x": {"type": "<class 'int'>", "default": None}},
+        "method_args": {"x": {"type": "<class 'int'>"}},
         "latest": True,
         "created_at": "2026-10-01T00:00:00Z",
         "updated_at": "2026-10-01T00:00:00Z",
@@ -152,7 +152,7 @@ def test_load_writes_actuator_files(fake_get, actuators_dir):
         "name": "doubler",
         "version": "1.0.0",
         "actuator_type": "coding",
-        "method_args": {"x": {"type": "<class 'int'>", "default": None}},
+        "method_args": {"x": {"type": "<class 'int'>"}},
         "latest": True,
         "created_at": "2026-10-01T00:00:00Z",
         "updated_at": "2026-10-01T00:00:00Z",
@@ -258,7 +258,7 @@ def test_load_skips_when_already_up_to_date(fake_get, fake_subprocess, actuators
 
 @pytest.mark.parametrize(
     "changed",
-    [{"version": "2.0.0"}, {"id": "another-id"}],
+    [{"version": "2.0.0"}, {"_id": "another-id"}],
 )
 def test_load_replaces_outdated_actuator(
     fake_get,
@@ -276,7 +276,7 @@ def test_load_replaces_outdated_actuator(
     assert not (directory / "leftover.txt").exists()
     card = json.loads((directory / "card.json").read_text())
     assert card["version"] == changed.get("version", "1.0.0")
-    assert card["id"] == changed.get("id", ACTUATOR_ID)
+    assert card["id"] == changed.get("_id", ACTUATOR_ID)
     assert len(fake_subprocess) == 2
 
 
@@ -481,10 +481,10 @@ def test_run_with_dst_uploads_original_data(actuators_dir, fake_post, sync_threa
     )
 
     assert len(sync_threads) == 1
-    content_call = calls_to(fake_post, "/content")[0]
+    content_call = calls_to(fake_post, "/contents")[0]
     data_call = calls_to(fake_post, "/data")[0]
 
-    assert content_call["url"] == "https://dst.example/content"
+    assert content_call["url"] == "https://dst.example/contents"
     assert content_call["headers"] == {}
     assert content_call["timeout"] == 9
     assert content_call["json"] == {
@@ -505,7 +505,7 @@ def test_run_with_dst_without_saving_original(actuators_dir, fake_post, sync_thr
     )
 
     assert sync_threads == []
-    assert calls_to(fake_post, "/content") == []
+    assert calls_to(fake_post, "/contents") == []
     assert calls_to(fake_post, "/data")[0]["json"]["linked_resource"] is None
 
 
@@ -546,7 +546,7 @@ def test_run_lazy_upload_runs_in_background_thread(actuators_dir, fake_post):
         if thread is not manager.threading.current_thread():
             thread.join(timeout=5)
 
-    assert len(calls_to(fake_post, "/content")) == 1
+    assert len(calls_to(fake_post, "/contents")) == 1
     assert len(calls_to(fake_post, "/data")) == 1
 
 
@@ -557,7 +557,7 @@ def test_run_lazy_upload_runs_in_background_thread(actuators_dir, fake_post):
 
 def send_content() -> None:
     _send_content(
-        url="https://dst.example/content",
+        url="https://dst.example/contents",
         headers={"h": "v"},
         timeout=3,
         identifier="abc",
@@ -570,12 +570,12 @@ def test_send_content_posts_payload(fake_post, caplog):
     send_content()
 
     assert fake_post.last == {
-        "url": "https://dst.example/content",
+        "url": "https://dst.example/contents",
         "headers": {"h": "v"},
         "json": {"identifier": "abc", "specs": {"x": 1}},
         "timeout": 3,
     }
-    assert "POST /content succeeded" in caplog.text
+    assert "POST /contents succeeded" in caplog.text
 
 
 def test_send_content_logs_error_status(fake_post, caplog):
@@ -584,7 +584,7 @@ def test_send_content_logs_error_status(fake_post, caplog):
 
     send_content()
 
-    assert "POST /content failed: status=413" in caplog.text
+    assert "POST /contents failed: status=413" in caplog.text
 
 
 def test_send_content_swallows_request_errors(fake_post, caplog):
@@ -592,7 +592,7 @@ def test_send_content_swallows_request_errors(fake_post, caplog):
 
     send_content()
 
-    assert "POST /content failed: timed out" in caplog.text
+    assert "POST /contents failed: timed out" in caplog.text
 
 
 # ===========================================================================
@@ -750,7 +750,7 @@ def test_actuator_run_with_dst(actuators_dir, fake_post, runner):
     assert output == {"value": 2}
 
     data_call = calls_to(fake_post, "/data")[0]
-    content_call = calls_to(fake_post, "/content")[0]
+    content_call = calls_to(fake_post, "/contents")[0]
     assert data_call["url"] == "https://dst.example/data"
     assert data_call["headers"] == {"h": "v"}
     assert data_call["timeout"] == 4
@@ -780,7 +780,7 @@ def test_actuator_run_with_dst_without_saving_original(
     run_method(act, runner, {"x": 1})
 
     assert sync_threads == []
-    assert calls_to(fake_post, "/content") == []
+    assert calls_to(fake_post, "/contents") == []
     assert calls_to(fake_post, "/data")[0]["json"]["linked_resource"] is None
 
 

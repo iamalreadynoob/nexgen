@@ -134,7 +134,7 @@ features = run_actuator(
 This call does these steps:
 
 1. It runs the actuator.
-2. It sends the original input to `POST {dst}/content` in a background thread. To stop this upload, set `dst_save_original=False`.
+2. It sends the original input to `POST {dst}/contents` in a background thread. To stop this upload, set `dst_save_original=False`.
 3. It sends the output to `POST {dst}/data`, with the server `id` of the actuator.
 4. It returns the output.
 
