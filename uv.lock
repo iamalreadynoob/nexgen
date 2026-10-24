@@ -224,27 +224,27 @@ name = "nexgenpy"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "build" },
-    { name = "pre-commit" },
     { name = "requests" },
-    { name = "ruff" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "build" },
+    { name = "pre-commit" },
     { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "build", specifier = ">=1.6.1" },
-    { name = "pre-commit", specifier = ">=4.6.2" },
-    { name = "requests", specifier = ">=2.34.2" },
-    { name = "ruff", specifier = ">=0.16.10" },
-]
+requires-dist = [{ name = "requests", specifier = ">=2.34.2" }]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+dev = [
+    { name = "build", specifier = ">=1.6.1" },
+    { name = "pre-commit", specifier = ">=4.6.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.10" },
+]
 
 [[package]]
 name = "nodeenv"
