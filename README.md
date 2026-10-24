@@ -83,19 +83,25 @@ flowchart LR
 
 ### Install the library
 
-Install from GitHub with pip:
+`nexgenpy` is on [PyPI](https://pypi.org/project/nexgenpy/). Install it with pip:
 
 ```bash
-pip install "git+https://github.com/iamalreadynoob/nexgen.git"
+pip install nexgenpy
 ```
 
 Or add it to a uv project:
 
 ```bash
-uv add "git+https://github.com/iamalreadynoob/nexgen.git"
+uv add nexgenpy
 ```
 
-The repository also keeps a built wheel in `dist/`. To install a local clone for development, see [Development](docs/development.md).
+To install the latest code from the `main` branch, which is not released yet, install from GitHub:
+
+```bash
+pip install "git+https://github.com/iamalreadynoob/nexgen.git"
+```
+
+To install a local clone for development, see [Development](docs/development.md).
 
 ### Connect to the server
 

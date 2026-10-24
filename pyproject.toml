@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,13 +8,37 @@ version="1.0.0"
 description="Post Shannon Communication for every day systems"
 readme="README.md"
 requires-python=">= 3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["semantic communication", "semcom", "6g", "actuator"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
+]
 authors=[
     {name="iamalreadynoob", email="sadikefe69@gmail.com"}
 ]
 dependencies = [
+    "requests>=2.34.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/iamalreadynoob/nexgen"
+Documentation = "https://github.com/iamalreadynoob/nexgen/tree/main/docs"
+Issues = "https://github.com/iamalreadynoob/nexgen/issues"
+Changelog = "https://github.com/iamalreadynoob/nexgen/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
     "build>=1.6.1",
     "pre-commit>=4.6.2",
-    "requests>=2.34.2",
+    "pytest>=9.1.1",
     "ruff>=0.16.10",
 ]
 
@@ -78,9 +102,4 @@ docstring-code-line-length = 88
 testpaths = ["tests"]
 markers = [
     "integration: creates real venvs and runs pip (slow)",
-]
-
-[dependency-groups]
-dev = [
-    "pytest>=9.1.1",
 ]

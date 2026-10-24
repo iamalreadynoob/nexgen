@@ -117,15 +117,247 @@ Use the conventional commit style, for example `feat: add arun to Actuator` or `
 
 ## Release
 
-1. Change `version` in `pyproject.toml`.
-2. Run the tests and the linter.
-3. Build the package:
+A release puts a new version of `nexgenpy` on [PyPI](https://pypi.org/project/nexgenpy/). Users can then install it with `pip install nexgenpy`.
+
+There are two procedures:
+
+- [Manual release](#manual-release): you build and upload the package from your computer with an API token.
+- [Automatic release](#automatic-release-trusted-publishing): GitHub Actions builds and uploads the package when you push a version tag. This procedure does not use a token. We recommend it after the first release.
+
+### Before the first release
+
+Do these steps one time only.
+
+#### 1. Remove the development tools from the runtime dependencies
+
+pip installs each package in `[project] dependencies` on the computer of each user. At the moment, this list contains `build`, `pre-commit` and `ruff`. Users do not need these tools. Move them to the `dev` dependency group:
+
+```toml
+[project]
+dependencies = [
+    "requests>=2.34.2",
+]
+
+[dependency-groups]
+dev = [
+    "build>=1.6.1",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+```
+
+`uv sync` installs the `dev` group by default. Thus the development commands in this document continue to work. Run `uv lock` after this change, and update `requirements.txt`.
+
+#### 2. Add the PyPI metadata
+
+PyPI shows these fields on the project page. Add them to `[project]` in `pyproject.toml`:
+
+```toml
+[project]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["semantic communication", "semcom", "6g", "actuator"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
+]
+
+[project.urls]
+Homepage = "https://github.com/iamalreadynoob/nexgen"
+Documentation = "https://github.com/iamalreadynoob/nexgen/tree/main/docs"
+Issues = "https://github.com/iamalreadynoob/nexgen/issues"
+Changelog = "https://github.com/iamalreadynoob/nexgen/blob/main/CHANGELOG.md"
+```
+
+The `license = "Apache-2.0"` format needs setuptools 77 or later. Change the build system requirement:
+
+```toml
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+```
+
+#### 3. Make the README links absolute
+
+PyPI uses `README.md` as the project description. PyPI cannot resolve relative links such as `docs/quickstart.md` or `pyproject.toml`. These links do not work on the PyPI page. Change each relative link in `README.md` to a full GitHub URL, for example:
+
+```text
+docs/quickstart.md  ->  https://github.com/iamalreadynoob/nexgen/blob/main/docs/quickstart.md
+```
+
+#### 4. Make the accounts
+
+1. Make an account on [PyPI](https://pypi.org/account/register/).
+2. Make a different account on [TestPyPI](https://test.pypi.org/account/register/). TestPyPI is a separate test index. It does not share accounts with PyPI.
+3. Enable two-factor authentication on the two accounts. PyPI does not let you upload without it.
+
+The first upload of `nexgenpy` makes the project on PyPI and makes you its owner. Nobody else can then use the name.
+
+### Manual release
+
+#### 1. Prepare the version
+
+1. Change `version` in `pyproject.toml`. Use [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+2. Add the version to `CHANGELOG.md`.
+3. Change the version badge in `README.md`.
+4. Run the tests and the linter:
 
    ```bash
-   uv run python -m build
+   uv run pytest
+   uv run ruff check .
+   uv run ruff format --check .
    ```
 
-4. Commit the new files in `dist/`.
+#### 2. Build the package
+
+```bash
+uv build
+```
+
+This command writes two files to `dist/`. In this example the version is `1.1.0`:
+
+- `nexgenpy-1.1.0.tar.gz`: the source distribution (sdist).
+- `nexgenpy-1.1.0-py3-none-any.whl`: the wheel.
+
+Check the metadata and the README rendering:
+
+```bash
+uvx twine check dist/nexgenpy-1.1.0*
+```
+
+`dist/` also contains the files of the earlier versions, because they are in git. Always give the files of the new version only to the upload commands. Do not use `dist/*`.
+
+#### 3. Upload to TestPyPI
+
+1. On TestPyPI, go to **Account settings > API tokens** and make a token.
+2. Upload the package:
+
+   ```bash
+   uv publish \
+     --publish-url https://test.pypi.org/legacy/ \
+     --token pypi-XXXXXXXX \
+     dist/nexgenpy-1.1.0*
+   ```
+
+3. Install the package from TestPyPI in a new virtual environment and test it:
+
+   ```bash
+   cd "$(mktemp -d)"
+   uv venv
+   uv pip install \
+     --index-url https://test.pypi.org/simple/ \
+     --extra-index-url https://pypi.org/simple/ \
+     --index-strategy unsafe-best-match \
+     nexgenpy==1.1.0
+   uv run python -c "import nexgenpy; print(nexgenpy.__file__)"
+   ```
+
+   The `--extra-index-url` option is necessary because TestPyPI does not have all the dependencies, for example `requests`.
+
+#### 4. Upload to PyPI
+
+1. On PyPI, go to **Account settings > API tokens** and make a token. For the first upload, the token scope must be **Entire account**, because the project does not exist yet. After the first upload, delete this token and make a new token with the scope **Project: nexgenpy**.
+2. Upload the package:
+
+   ```bash
+   uv publish --token pypi-XXXXXXXX dist/nexgenpy-1.1.0*
+   ```
+
+   You can also put the token in the `UV_PUBLISH_TOKEN` environment variable. Then you do not have to type it in the command.
+
+3. Open <https://pypi.org/project/nexgenpy/> and examine the page.
+
+#### 5. Commit and tag
+
+```bash
+git add pyproject.toml CHANGELOG.md README.md dist/nexgenpy-1.1.0*
+git commit -m "release: 1.1.0"
+git tag v1.1.0
+git push origin main --tags
+```
+
+### Automatic release (trusted publishing)
+
+With [trusted publishing](https://docs.pypi.org/trusted-publishers/), PyPI accepts uploads from one GitHub Actions workflow. You do not keep a token on your computer or in the GitHub secrets.
+
+#### 1. Add the trusted publisher on PyPI
+
+1. On PyPI, go to **Your projects > nexgenpy > Publishing**. Before the first release, go to **Account settings > Publishing** and add a *pending* publisher.
+2. Enter these values:
+
+   | Field | Value |
+   |---|---|
+   | PyPI project name | `nexgenpy` |
+   | Owner | `iamalreadynoob` |
+   | Repository name | `nexgen` |
+   | Workflow name | `publish.yml` |
+   | Environment name | `pypi` |
+
+3. On GitHub, go to **Settings > Environments** and make an environment with the name `pypi`. You can add a protection rule, for example a required reviewer.
+
+#### 2. Add the workflow
+
+Make the file `.github/workflows/publish.yml`:
+
+```yaml
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write  # necessary for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Run tests
+        run: |
+          uv sync --locked
+          uv run pytest -m "not integration"
+
+      - name: Build
+        # Use a separate directory, because dist/ contains the earlier versions
+        run: uv build --out-dir release-dist
+
+      - name: Publish
+        run: uv publish release-dist/*
+```
+
+#### 3. Release
+
+1. Do the steps in [Prepare the version](#1-prepare-the-version).
+2. Build the package with `uv build` and commit the new files in `dist/`.
+3. Push a tag that agrees with the version in `pyproject.toml`:
+
+   ```bash
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+
+The workflow then builds and uploads the package. See the result in the **Actions** tab on GitHub.
+
+### Rules of PyPI
+
+- You cannot upload the same version two times. If a release has an error, increase the version and release again.
+- You cannot use a file name again, also after you delete the file.
+- Do not delete a bad release. *Yank* it on the PyPI project page. pip then does not install it, except when a user asks for that exact version.
+- Do not commit an API token. If a token becomes public, delete it on PyPI immediately.
 
 ## Documentation
 
