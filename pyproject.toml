@@ -25,6 +25,7 @@ authors=[
     {name="iamalreadynoob", email="sadikefe69@gmail.com"}
 ]
 dependencies = [
+    "pydantic>=2.13.5",
     "requests>=2.34.2",
 ]
 
