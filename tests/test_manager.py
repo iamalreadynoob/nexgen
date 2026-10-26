@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import shutil
 import sys
 import textwrap
 import threading
@@ -67,6 +68,11 @@ def write_actuator(
         python = directory / ".venv" / "bin" / "python"
     python.parent.mkdir(parents=True)
     python.symlink_to(sys.executable)
+    # The Windows venv launcher does not follow the symlink: it looks for
+    # pyvenv.cfg next to its own path, so give the fake venv a copy
+    venv_cfg = Path(sys.prefix) / "pyvenv.cfg"
+    if os.name == "nt" and venv_cfg.is_file():
+        shutil.copy(venv_cfg, directory / ".venv" / "pyvenv.cfg")
     if card is None:
         card = {"id": ACTUATOR_ID, "name": name, "version": "1.0.0"}
     (directory / "card.json").write_text(json.dumps(card))
@@ -100,17 +106,24 @@ def sync_threads(monkeypatch) -> list[dict[str, Any]]:
             self.target = target
             self.kwargs = kwargs or {}
             self.options = options
+            self.thread: threading.Thread | None = None
 
         def start(self) -> None:
             if self.target is not manager._send_content:
-                real_thread(
+                self.thread = real_thread(
                     target=self.target,
                     kwargs=self.kwargs,
                     **self.options,
-                ).start()
+                )
+                self.thread.start()
                 return
             started.append(self.kwargs)
             self.target(**self.kwargs)
+
+        def join(self, timeout: float | None = None) -> None:
+            # _Worker joins its stderr reader when the worker crashes
+            if self.thread is not None:
+                self.thread.join(timeout)
 
     monkeypatch.setattr(manager, "threading", types.SimpleNamespace(Thread=SyncThread))
     return started
