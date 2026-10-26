@@ -1,0 +1,4 @@
+# This file replaces Semgrep's default ignore list.
+# Keep it in sync with the semgrep hook's exclude in .pre-commit-config.yaml.
+dist/
+.claude/skills/

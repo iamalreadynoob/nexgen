@@ -17,7 +17,8 @@ uv run pytest -m "not integration"  # skip the tests that build real venvs
 uv run ruff check .              # lint (strict rule set, see pyproject.toml)
 uv run ruff check --fix .        # autofix
 uv run ruff format .             # format
-uv run pre-commit run --all-files  # yaml/toml/json checks, private-key detection, ruff
+uv run pre-commit run semgrep --all-files  # Semgrep scan (same as the CI job)
+uv run pre-commit run --all-files  # yaml/toml/json checks, private-key detection, ruff, semgrep
 uv run python -m build           # build sdist + wheel into dist/
 ```
 
@@ -43,4 +44,5 @@ Environment variables:
 - Ruff enforces a broad rule set, including `ANN` (annotations required), `D` (Google docstrings), `S` (bandit) and `T20` (no `print`; use the module-level `logger`). Line length is 88. Ruff skips `__init__.py`.
 - Docstrings start with a Markdown-style heading line, e.g. `"""# Load Actuator.`, followed by Google-style `Args:`/`Returns:`.
 - Public functions check every argument's type up front with the pattern `if isinstance(x, T) is False: logger.error(msg); raise ValueError(msg)`. Follow this pattern in new public functions.
+- Semgrep rulesets live only in the `semgrep` hook in `.pre-commit-config.yaml`, and CI runs that hook. Suppress an accepted finding with `# nosemgrep: <rule-id>` on the line before the code, and give a reason.
 - Commit messages loosely follow conventional commits (`feat: ...`).

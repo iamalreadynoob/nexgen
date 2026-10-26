@@ -5,7 +5,7 @@ All notable changes to this project are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- changelog-skill: last-documented-commit 168d01757c76a100d2e1091bb88112ad8eadf9a5 -->
+<!-- changelog-skill: last-documented-commit e1db30b22a2b3641288ede453eb6454efe4c506c -->
 
 ## [Unreleased]
 
@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Actuator.close` method that stops the worker processes of the actuator.
 - `Actuator` support for the `with` statement, which calls `close` at the end of the block.
 - `Actuator` starts a new worker process when a worker process stops during a run.
+- `Data` class in `nexgenpy.wrappers` that reads and changes the data items on the server.
+- `Data.get_data_list` method that returns a page of data items from `GET /data` as a `DataList`.
+- `page`, `limit`, `ascending` and `actuator_id` arguments of `Data.get_data_list` that filter and sort the data items.
+- `Data.create_data` method that creates a data item with `POST /data`.
+- `Data.get_data` method that returns one data item from `GET /data/{data_id}`.
+- `Data.update_data` method that changes a data item with `PUT /data/{data_id}`.
+- `Data.delete_data` method that removes a data item with `DELETE /data/{data_id}`.
+- `DataOut` and `DataList` models in `nexgenpy.schema` for the data items that the server returns.
+- `Data` methods raise `requests.HTTPError` when the server returns an error status.
+- `Data` methods reject a `data_id` that is empty, `.` or `..`.
 
 ### Changed
 
@@ -22,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** The input data and the output of an actuator must be objects that `pickle` can serialize. Use built-in types, for example `dict`, `list` and `str`, for the data and the output.
 - `run_actuator` and `Actuator` raise `FileNotFoundError` when the actuator directory has no `.venv`.
 - `run_actuator` and `Actuator` send the `print()` output of the actuator method to the `nexgenpy.manager` logger.
+- `nexgenpy` requires `pydantic` 2.13.5 or a later version.
 
 ### Removed
 

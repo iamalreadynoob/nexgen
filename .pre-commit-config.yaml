@@ -19,3 +19,25 @@ repos:
     hooks:
       - id: ruff-check
       - id: ruff-format
+
+  # Semgrep static analysis (CI runs this hook too)
+  - repo: https://github.com/semgrep/pre-commit
+    rev: v1.182.1
+    hooks:
+      - id: semgrep
+        # Files passed on the command line bypass .semgrepignore
+        exclude: ^(dist|\.claude/skills)/
+        args:
+          - scan
+          - --config=p/python
+          - --config=p/security-audit
+          - --config=p/secrets
+          - --config=p/github-actions
+          - --error
+          - --metrics=off
+          # Parallel jobs can fail with "io_uring_queue_init: Cannot allocate
+          # memory" under the default 8 MB memlock limit
+          - --jobs=1
+          - --disable-version-check
+          - --quiet
+          - --skip-unknown-extensions

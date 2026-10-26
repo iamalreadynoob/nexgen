@@ -849,6 +849,8 @@ def _run(
         out_path = Path(tmp) / "out.pkl"
 
         with open(in_path, "wb") as f:
+            # Accepted risk, see docs/security.md
+            # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
             pickle.dump(fn_args, f, protocol=4)
 
         proc = subprocess.run(  # noqa: S603
@@ -876,6 +878,7 @@ def _run(
             raise RuntimeError(msg)
 
         with open(out_path, "rb") as f:
+            # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
             outcome = pickle.load(f)  # noqa: S301
 
     if outcome["ok"] is False:
@@ -922,6 +925,8 @@ def _write_msg(stream: IO[bytes], obj: object) -> None:
         stream (IO[bytes]): The stdin pipe of the worker.
         obj (object): The object to send.
     """
+    # Accepted risk, see docs/security.md
+    # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
     data = pickle.dumps(obj, protocol=4)
     stream.write(struct.pack(">Q", len(data)) + data)
     stream.flush()
@@ -950,6 +955,7 @@ def _read_msg(stream: IO[bytes]) -> Dict[str, Any]:
     if len(data) < size:
         raise EOFError("The worker closed the pipe")
 
+    # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
     return pickle.loads(data)  # noqa: S301
 
 

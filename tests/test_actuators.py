@@ -281,5 +281,6 @@ def test_function_source_is_valid_standalone_code():
         return a + b
 
     namespace: dict[str, Any] = {}
+    # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
     exec(_function_source(adder), namespace)  # noqa: S102
     assert namespace["adder"](2) == 3

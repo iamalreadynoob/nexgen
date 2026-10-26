@@ -18,6 +18,7 @@ nexgen/
 ├── dist/                 # built sdist and wheel (committed)
 ├── .github/workflows/ci.yml
 ├── .pre-commit-config.yaml
+├── .semgrepignore        # paths that Semgrep does not scan
 ├── pyproject.toml
 ├── requirements.txt      # mirrors the pinned versions in uv.lock
 └── uv.lock
@@ -55,6 +56,7 @@ nexgen/
 | Lint | `uv run ruff check .` |
 | Lint and fix | `uv run ruff check --fix .` |
 | Format | `uv run ruff format .` |
+| Run the Semgrep scan | `uv run pre-commit run semgrep --all-files` |
 | Run all pre-commit hooks | `uv run pre-commit run --all-files` |
 | Build the sdist and the wheel | `uv run python -m build` |
 
@@ -71,10 +73,30 @@ The tests with the `integration` marker make real virtual environments and run p
 | Job | Platforms | Python | Steps |
 |---|---|---|---|
 | Ruff | Ubuntu | default | `ruff check`, `ruff format --check` |
+| Semgrep | Ubuntu | default | `pre-commit run semgrep --all-files` |
 | Actuators tests | Ubuntu | 3.12, 3.13 | `pytest tests/test_actuators.py` |
+| Wrappers tests | Ubuntu | 3.12, 3.13 | `pytest tests/test_wrappers.py` |
 | Manager tests | Ubuntu, macOS, Windows | 3.12, 3.13 | `pytest tests/test_manager.py`, unit tests first, then integration tests |
 
 The manager tests run on Windows because `load_actuator` uses a different `pip` path there.
+
+The workflow pins each action to a full commit SHA. A tag can move to a different commit, but a SHA cannot. When you update an action, change the SHA and the version comment together.
+
+## Semgrep
+
+[Semgrep](https://semgrep.dev) analyzes the code without running it, to find security and correctness problems. The `semgrep` hook in `.pre-commit-config.yaml` sets the rulesets: `p/python`, `p/security-audit`, `p/secrets` and `p/github-actions`. The CI job runs the same hook. Thus the rulesets are in one location only.
+
+- Each finding stops the commit and makes the CI job fail.
+- Semgrep does not scan `dist/` and `.claude/skills/`. These paths are in `.semgrepignore` and in the `exclude` of the hook. Change the two locations together.
+- The hook uses `--jobs=1`. With more jobs, Semgrep can fail with `io_uring_queue_init: Cannot allocate memory` when the memlock limit is 8 MB, the Linux default.
+
+If a finding is an accepted risk, put a `nosemgrep` comment with the rule ID on the line before the code. Tell why in the comment, or refer to a document:
+
+```python
+# Accepted risk, see docs/security.md
+# nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
+data = pickle.dumps(obj, protocol=4)
+```
 
 ## Code conventions
 
@@ -322,9 +344,9 @@ jobs:
       contents: read
       id-token: write  # necessary for trusted publishing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
       - name: Run tests
         run: |
