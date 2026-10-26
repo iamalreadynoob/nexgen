@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 import sys
 import textwrap
 import threading
@@ -138,7 +139,7 @@ def fake_subprocess(monkeypatch) -> list[list[str]]:
         assert kwargs.get("check") is True
         commands.append(cmd)
 
-    monkeypatch.setattr(manager.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     return commands
 
 
@@ -336,11 +337,11 @@ def test_load_failed_install_leaves_no_card(fake_get, actuators_dir, monkeypatch
 
     def failing_run(cmd: list[str], **kwargs: Any) -> None:  # noqa: ARG001
         if "install" in cmd:
-            raise manager.subprocess.CalledProcessError(1, cmd)
+            raise subprocess.CalledProcessError(1, cmd)
 
-    monkeypatch.setattr(manager.subprocess, "run", failing_run)
+    monkeypatch.setattr(subprocess, "run", failing_run)
 
-    with pytest.raises(manager.subprocess.CalledProcessError):
+    with pytest.raises(subprocess.CalledProcessError):
         load_actuator("doubler", actuators_dir=str(actuators_dir))
 
     assert (actuators_dir / "doubler" / "method.py").exists()
@@ -579,8 +580,8 @@ def test_run_lazy_upload_runs_in_background_thread(actuators_dir, fake_post):
         dst="https://dst.example",
     )
 
-    for thread in manager.threading.enumerate():
-        if thread is not manager.threading.current_thread():
+    for thread in threading.enumerate():
+        if thread is not threading.current_thread():
             thread.join(timeout=5)
 
     assert len(calls_to(fake_post, "/contents")) == 1
@@ -1053,7 +1054,7 @@ def test_actuator_single_worker_runs_one_call_at_a_time(actuators_dir, make_actu
     )
     act = make_actuator("doubler", actuators_dir=str(actuators_dir))
 
-    async def main() -> list[object]:
+    async def main() -> list[Any]:
         return await asyncio.gather(*(act.arun({"x": i}) for i in range(3)))
 
     start = time.perf_counter()

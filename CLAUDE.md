@@ -17,8 +17,10 @@ uv run pytest -m "not integration"  # skip the tests that build real venvs
 uv run ruff check .              # lint (strict rule set, see pyproject.toml)
 uv run ruff check --fix .        # autofix
 uv run ruff format .             # format
+uv run pre-commit run mypy --all-files     # type check nexgenpy/ and tests/ (same as the CI job)
 uv run pre-commit run semgrep --all-files  # Semgrep scan (same as the CI job)
-uv run pre-commit run --all-files  # yaml/toml/json checks, private-key detection, ruff, semgrep
+uv run pre-commit run gitleaks-history --hook-stage manual --all-files  # Gitleaks scan of the full git history (same as the CI job)
+uv run pre-commit run --all-files  # yaml/toml/json checks, private-key detection, gitleaks (staged only), ruff, mypy, semgrep
 uv run python -m build           # build sdist + wheel into dist/
 ```
 
@@ -45,4 +47,6 @@ Environment variables:
 - Docstrings start with a Markdown-style heading line, e.g. `"""# Load Actuator.`, followed by Google-style `Args:`/`Returns:`.
 - Public functions check every argument's type up front with the pattern `if isinstance(x, T) is False: logger.error(msg); raise ValueError(msg)`. Follow this pattern in new public functions.
 - Semgrep rulesets live only in the `semgrep` hook in `.pre-commit-config.yaml`, and CI runs that hook. Suppress an accepted finding with `# nosemgrep: <rule-id>` on the line before the code, and give a reason.
+- Mypy runs in `--strict` mode on `nexgenpy/` (config in `[tool.mypy]` in `pyproject.toml`). Tests are type-checked but do not need annotations. The hook runs in its own venv. When the code imports a new third-party package, add that package (or its `types-*` stubs) to the hook's `additional_dependencies`.
+- Gitleaks runs as two hooks in `.pre-commit-config.yaml`: `gitleaks` checks staged changes on every commit, and the manual-stage `gitleaks-history` checks every commit (CI runs it). Suppress an accepted finding with a `gitleaks:allow` comment on that line, or add its fingerprint to `.gitleaksignore`.
 - Commit messages loosely follow conventional commits (`feat: ...`).

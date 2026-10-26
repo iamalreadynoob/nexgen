@@ -5,8 +5,6 @@ from typing import Any, Dict, List
 import pytest
 import requests
 
-from nexgenpy import actuators
-
 
 class FakeResponse:
     """A minimal stand-in for requests.Response."""
@@ -27,7 +25,7 @@ class FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.ok is False:
-            raise requests.HTTPError(f"{self.status_code} Error", response=self)
+            raise requests.HTTPError(f"{self.status_code} Error", response=self)  # type: ignore[arg-type]
 
 
 class FakePost:
@@ -59,9 +57,9 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def fake_post(monkeypatch: pytest.MonkeyPatch) -> FakePost:
-    """Replace requests.post in the actuators module, so no request is sent."""
+    """Replace requests.post (the actuators module calls it), so no request is sent."""
     fake = FakePost()
-    monkeypatch.setattr(actuators.requests, "post", fake)
+    monkeypatch.setattr(requests, "post", fake)
     return fake
 
 

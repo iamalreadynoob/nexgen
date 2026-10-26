@@ -56,7 +56,9 @@ nexgen/
 | Lint | `uv run ruff check .` |
 | Lint and fix | `uv run ruff check --fix .` |
 | Format | `uv run ruff format .` |
+| Type check | `uv run pre-commit run mypy --all-files` |
 | Run the Semgrep scan | `uv run pre-commit run semgrep --all-files` |
+| Scan the full git history for secrets | `uv run pre-commit run gitleaks-history --hook-stage manual --all-files` |
 | Run all pre-commit hooks | `uv run pre-commit run --all-files` |
 | Build the sdist and the wheel | `uv run python -m build` |
 
@@ -74,6 +76,8 @@ The tests with the `integration` marker make real virtual environments and run p
 |---|---|---|---|
 | Ruff | Ubuntu | default | `ruff check`, `ruff format --check` |
 | Semgrep | Ubuntu | default | `pre-commit run semgrep --all-files` |
+| Mypy | Ubuntu | default | `pre-commit run mypy --all-files` |
+| Gitleaks | Ubuntu | default | `pre-commit run gitleaks-history --hook-stage manual --all-files` |
 | Actuators tests | Ubuntu | 3.12, 3.13 | `pytest tests/test_actuators.py` |
 | Wrappers tests | Ubuntu | 3.12, 3.13 | `pytest tests/test_wrappers.py` |
 | Manager tests | Ubuntu, macOS, Windows | 3.12, 3.13 | `pytest tests/test_manager.py`, unit tests first, then integration tests |
@@ -97,6 +101,29 @@ If a finding is an accepted risk, put a `nosemgrep` comment with the rule ID on 
 # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
 data = pickle.dumps(obj, protocol=4)
 ```
+
+## Mypy
+
+[Mypy](https://mypy-lang.org) checks the type annotations without running the code. The settings are in `[tool.mypy]` in `pyproject.toml`. The `mypy` hook in `.pre-commit-config.yaml` checks `nexgenpy/` and `tests/`. The CI job runs the same hook.
+
+- Mypy checks `nexgenpy/` in strict mode, with the `pydantic.mypy` plugin.
+- Tests do not need annotations. Mypy still checks the bodies of the test functions.
+- The hook runs in a separate virtual environment. When the code imports a new third-party package, add the package or its `types-*` stubs to `additional_dependencies` of the hook.
+
+If a finding is a false positive, put a `# type: ignore[<code>]` comment with the error code on that line.
+
+## Gitleaks
+
+[Gitleaks](https://github.com/gitleaks/gitleaks) finds secrets in the code, for example API keys and tokens. `.pre-commit-config.yaml` has two Gitleaks hooks:
+
+| Hook | Stage | What it scans |
+|---|---|---|
+| `gitleaks` | each commit | the staged changes only, also with `--all-files` |
+| `gitleaks-history` | `manual` | all commits in the git history |
+
+The CI job runs `gitleaks-history`. The job clones the full history (`fetch-depth: 0`), because Gitleaks scans each commit.
+
+If a finding is an accepted risk, put a `gitleaks:allow` comment on that line. You can also add the fingerprint of the finding to `.gitleaksignore`. A secret stays in the git history after a new commit changes it. Thus, if a real secret goes into a commit, make the secret unusable (revoke it) and make a new one.
 
 ## Code conventions
 

@@ -49,6 +49,43 @@ jobs:
       - name: Semgrep scan
         run: uv run pre-commit run semgrep --all-files
 
+  mypy:
+    name: Mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # The hook is configured in .pre-commit-config.yaml and pyproject.toml
+      - name: Mypy check
+        run: uv run pre-commit run mypy --all-files
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Gitleaks scans every commit, so it needs the full history
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # The hook is configured in .pre-commit-config.yaml
+      - name: Gitleaks scan
+        run: uv run pre-commit run gitleaks-history --hook-stage manual --all-files
+
   test-actuators:
     name: Actuators tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

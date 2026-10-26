@@ -23,7 +23,7 @@ import threading
 import weakref
 from collections import deque
 from pathlib import Path
-from typing import IO, Any, Dict, List, Self
+from typing import IO, Any, Dict, List, Self, cast
 from uuid import uuid4
 
 import requests
@@ -956,7 +956,8 @@ def _read_msg(stream: IO[bytes]) -> Dict[str, Any]:
         raise EOFError("The worker closed the pipe")
 
     # nosemgrep: python.lang.security.deserialization.pickle.avoid-pickle
-    return pickle.loads(data)  # noqa: S301
+    outcome: Dict[str, Any] = pickle.loads(data)  # noqa: S301
+    return outcome
 
 
 class _Worker:
@@ -991,6 +992,11 @@ class _Worker:
             stderr=subprocess.PIPE,
         )
 
+        # Popen gets PIPE for all three streams, so they are never None
+        self._stdin = cast("IO[bytes]", self._proc.stdin)
+        self._stdout = cast("IO[bytes]", self._proc.stdout)
+        self._stderr = cast("IO[bytes]", self._proc.stderr)
+
         # stderr has to be read all the time, or a full pipe blocks the worker
         self._drain = threading.Thread(target=self._drain_stderr, daemon=True)
         self._drain.start()
@@ -1001,7 +1007,7 @@ class _Worker:
         It logs the stderr of the worker line by line. print() inside the
         method also comes here, because _WORKER moves stdout to stderr.
         """
-        with self._proc.stderr as stream:
+        with self._stderr as stream:
             for raw_line in stream:
                 line = raw_line.decode(errors="replace")
                 self._stderr_tail.append(line)
@@ -1033,7 +1039,7 @@ class _Worker:
             RuntimeError: If the worker cannot import method.py.
         """
         try:
-            outcome = _read_msg(self._proc.stdout)
+            outcome = _read_msg(self._stdout)
         except EOFError as e:
             raise self._crashed() from e
 
@@ -1068,8 +1074,8 @@ class _Worker:
             raise RuntimeError(msg)
 
         try:
-            _write_msg(self._proc.stdin, kwargs)
-            outcome = _read_msg(self._proc.stdout)
+            _write_msg(self._stdin, kwargs)
+            outcome = _read_msg(self._stdout)
         except (EOFError, OSError) as e:
             raise self._crashed() from e
 
@@ -1088,7 +1094,7 @@ class _Worker:
         """
         self.alive = False
         with contextlib.suppress(OSError):
-            self._proc.stdin.close()
+            self._stdin.close()
 
         try:
             self._proc.wait(timeout=5)
@@ -1096,7 +1102,7 @@ class _Worker:
             self._proc.kill()
             self._proc.wait()
 
-        self._proc.stdout.close()
+        self._stdout.close()
 
 
 def _close_all(workers: List[_Worker]) -> None:

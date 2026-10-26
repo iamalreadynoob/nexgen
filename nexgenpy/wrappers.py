@@ -63,7 +63,7 @@ class Data:
             logger.error("Timeout is invalid, it has to be int")
             raise ValueError("Timeout is invalid, it has to be int")
 
-        params = {}
+        params: Dict[str, Any] = {}
         if page is not None:
             params["page"] = page
 
@@ -245,7 +245,7 @@ class Data:
 
         data_id = quote(data_id, safe="")
 
-        update_dict = {}
+        update_dict: Dict[str, Any] = {}
 
         if linked_resource is not None:
             update_dict["linked_resource"] = linked_resource

@@ -271,7 +271,7 @@ def test_function_source_strips_multiline_decorator():
     def multi(a):
         return a
 
-    source = _function_source(multi.__wrapped__)
+    source = _function_source(multi.__wrapped__)  # type: ignore[attr-defined]
     assert source == "def multi(a):\n    return a\n"
 
 

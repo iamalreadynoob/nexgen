@@ -99,6 +99,22 @@ line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = 88
 
+[tool.mypy]
+python_version = "3.12"
+files = ["nexgenpy", "tests"]
+strict = true
+plugins = ["pydantic.mypy"]
+
+# Tests do not need annotations (ruff skips ANN there), but mypy checks the rest
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+check_untyped_defs = true
+warn_return_any = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
