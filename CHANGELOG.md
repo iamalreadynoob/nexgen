@@ -5,9 +5,33 @@ All notable changes to this project are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- changelog-skill: last-documented-commit cbf253e51d3c890daa405a004915ed059345dab4 -->
+<!-- changelog-skill: last-documented-commit 168d01757c76a100d2e1091bb88112ad8eadf9a5 -->
 
 ## [Unreleased]
+
+### Added
+
+- `workers` argument of `Actuator` that sets the number of parallel runs, with `1` as the default.
+- `Actuator.close` method that stops the worker processes of the actuator.
+- `Actuator` support for the `with` statement, which calls `close` at the end of the block.
+- `Actuator` starts a new worker process when a worker process stops during a run.
+
+### Changed
+
+- **Breaking:** `run_actuator`, `Actuator.run` and `Actuator.arun` raise `RuntimeError` when the actuator method raises an exception. Catch `RuntimeError` in place of the exceptions of the method.
+- **Breaking:** The input data and the output of an actuator must be objects that `pickle` can serialize. Use built-in types, for example `dict`, `list` and `str`, for the data and the output.
+- `run_actuator` and `Actuator` raise `FileNotFoundError` when the actuator directory has no `.venv`.
+- `run_actuator` and `Actuator` send the `print()` output of the actuator method to the `nexgenpy.manager` logger.
+
+### Removed
+
+- **Breaking:** The `Actuator.method` attribute. Use `Actuator.run` to call the method, or `Actuator.method_name` to get its name.
+
+### Fixed
+
+- `run_actuator` and `Actuator` run the actuator method with the Python interpreter of the actuator `.venv`.
+
+## [1.0.0] - 2026-10-24
 
 ### Added
 
@@ -31,4 +55,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NEXGEN_TIMEOUT` environment variable for the timeout of the `@actuator` request, with 60 seconds as the default.
 - User documentation in `README.md` and `docs/`, with a quickstart, an API reference and a security guide.
 
-[unreleased]: https://github.com/iamalreadynoob/nexgen/commits/main
+[unreleased]: https://github.com/iamalreadynoob/nexgen/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/iamalreadynoob/nexgen/releases/tag/v1.0.0

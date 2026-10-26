@@ -102,7 +102,8 @@ load_actuator(
 ## Notes
 
 - The pip step can take a long time for large requirements, for example `torch`. It has no timeout.
-- `run_actuator` and `Actuator` do not use the `.venv`. See [Architecture](../architecture.md#the-actuator-environment).
+- `run_actuator` and `Actuator` run the actuator function with the Python of the `.venv`. See [Architecture](../architecture.md#the-actuator-environment).
+- `load_actuator` deletes the old directory with its `.venv`. Close each `Actuator` object of this actuator before you load a new version.
 - `load_actuator` runs `pip install` with requirements from the server. Use only a server that you trust. See [Security](../security.md).
 
 ## See also

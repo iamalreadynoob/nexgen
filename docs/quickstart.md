@@ -102,16 +102,16 @@ Make a file `receiver.py`:
 ```python
 from nexgenpy import Actuator
 
-classifier = Actuator(name="topic-classifier")
-
 features = {"keywords": ["storm", "with", "strong", "wind", "coming"]}
-decision = classifier.run(data=features)
+
+with Actuator(name="topic-classifier") as classifier:
+    decision = classifier.run(data=features)
 
 print(decision)
 # {'label': 'weather'}
 ```
 
-The `Actuator` class imports `method.py` one time. Use it when you run an actuator many times.
+The `Actuator` class starts a worker process one time. The worker imports `method.py` one time and then does each run. Use the class when you run an actuator many times. The `with` block stops the worker at the end.
 
 ## Step 4: Store the output on the server
 

@@ -154,7 +154,7 @@ vector = run_actuator(
 )
 ```
 
-`run_actuator` runs the function in the current Python process. Thus the current environment must also have the requirements of the actuator, `numpy` in this example. See [Architecture](docs/architecture.md#the-actuator-environment).
+`run_actuator` runs the function in a separate process, with the Python of the actuator `.venv`. Thus your application does not need `numpy`. The function returns a `list`, not a NumPy array, so the output also does not need `numpy`. See [Architecture](docs/architecture.md#the-actuator-environment).
 
 To send the output to the server as a data item, give the server URL and the API key header:
 
@@ -193,7 +193,7 @@ The server stores only the source code of the function. The code that is outside
 - Put all `import` statements in the function body.
 - Do not call helper functions from the same module. Define them in the function body.
 - Use parameter names that match the keys of the input data. `run_actuator` calls the function with `**data`.
-- Return a value that JSON can encode, if you send the output to the server.
+- Return a value that JSON can encode, for example a `dict` or a `list`. The output comes back from the actuator process through `pickle`, and `dst` gets it as JSON.
 
 [Writing actuators](docs/writing-actuators.md) explains each rule.
 

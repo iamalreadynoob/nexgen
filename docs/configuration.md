@@ -59,7 +59,7 @@ run_actuator(
 | `GET /actuators/{name}/latest` | `load_timeout` parameter of `load_actuator` | 60 s |
 | `POST {dst}/data`, `POST {dst}/contents` | `dst_timeout` parameter of `run_actuator` and `Actuator` | 60 s |
 
-The venv and pip steps of `load_actuator` have no timeout.
+The venv and pip steps of `load_actuator` have no timeout. A run of the actuator function also has no timeout.
 
 ## Local directory
 
@@ -87,13 +87,18 @@ Use the same `actuators_dir` for `load_actuator` and for `run_actuator`.
 | Logger | Messages |
 |---|---|
 | `nexgenpy.actuators` | Registration requests and `NEXGEN_TIMEOUT` warnings |
-| `nexgenpy.manager` | Load steps, data requests and content uploads |
+| `nexgenpy.manager` | Load steps, actuator runs, data requests and content uploads |
 
 | Level | Examples |
 |---|---|
-| `ERROR` | An argument is invalid, just before the `ValueError` |
+| `ERROR` | An argument is invalid, just before the `ValueError`. An actuator run failed, just before the `RuntimeError`. |
 | `WARNING` | A request failed, an actuator is not local, `NEXGEN_TIMEOUT` is invalid |
-| `INFO` | A request succeeded, a load step finished |
+| `INFO` | A request succeeded, a load step finished, the actuator function printed output |
+
+The actuator function runs in a separate process. Its `print()` output does not go to the stdout of your application. `nexgenpy.manager` logs it at the `INFO` level:
+
+- `run_actuator` logs all the `print()` output in one message after the run.
+- `Actuator` logs each line of the `print()` output and of the stderr output of a worker. Each message starts with `Actuator {function name}:`.
 
 To see the messages, configure logging in your application:
 
@@ -105,4 +110,4 @@ logging.getLogger("nexgenpy").setLevel(logging.WARNING)
 ```
 
 > [!NOTE]
-> The `INFO` and `WARNING` messages for requests include the response body of the server. The `GET /actuators/{name}/latest` message includes the full actuator source code.
+> The `INFO` and `WARNING` messages for requests include the response body of the server. The `GET /actuators/{name}/latest` message includes the full actuator source code. The `INFO` messages of an actuator run include all the `print()` output of the function.

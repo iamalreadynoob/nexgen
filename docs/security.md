@@ -9,9 +9,12 @@ This document describes the security risks of `nexgenpy` and of SemCom systems i
 | Step | What runs | Where |
 |---|---|---|
 | `load_actuator` | `pip install -r requirements.txt` with the requirements from the server. pip can run build scripts of the packages. | A new venv in `{actuators_dir}/{name}/.venv` |
-| `run_actuator`, `Actuator` | `method.py` with the source code from the server | The current Python process, with all its permissions |
+| `run_actuator`, `Actuator` | The function in `method.py`, with the source code from the server | A separate process with the Python of `.venv`. It has the same user and a copy of the environment variables of your application. |
+| `run_actuator` | The module-level code of `method.py`, to find the function | The current Python process, with all its permissions |
 
-The actuator code has the same access as your application. It can read files, read environment variables (including `NEXGEN_API_KEY`) and send network requests.
+The separate process is not a sandbox. The actuator code has the same access as your application. It can read files, read environment variables (including `NEXGEN_API_KEY`) and send network requests.
+
+The library reads the output of the actuator process with `pickle`. `pickle` can run code when it reads data. Thus the actuator code can also run code in your application process.
 
 Do these steps to decrease the risk:
 
@@ -26,13 +29,13 @@ Do these steps to decrease the risk:
 
 - Use `https://` for `NEXGEN_BASE_URL` and `dst` outside a local test setup. With `http://`, other parties on the network can read the API key and the data.
 - Keep the API key in the environment or in a secret store. Do not write it in source code or in `data_specs`.
-- `load_actuator` logs the server response at the `INFO` level. Do not send `INFO` logs to a place that untrusted users can read.
+- `load_actuator` logs the server response at the `INFO` level. `run_actuator` and `Actuator` log the `print()` output of the actuator function at the `INFO` level. Do not send `INFO` logs to a place that untrusted users can read.
 
 ## Local files
 
 - `load_actuator` rejects a `name` that is not a plain directory name, for example `"../other"`. Thus a name cannot write outside `actuators_dir`.
 - `load_actuator` deletes `{actuators_dir}/{name}` before it writes a new version. Do not keep other files in that directory.
-- Anyone who can write to `actuators_dir` can change `method.py`. Protect the directory with file permissions.
+- Anyone who can write to `actuators_dir` can change `method.py` or the Python in `.venv`. Protect the directory with file permissions.
 
 ## Data and privacy
 

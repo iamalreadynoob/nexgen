@@ -31,7 +31,7 @@ class FakeResponse:
 
 
 class FakePost:
-    """Records the calls to requests.post (or get) and returns a preset response."""
+    """Records the calls to a requests verb and returns a preset response."""
 
     def __init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
@@ -71,4 +71,22 @@ def fake_get(monkeypatch: pytest.MonkeyPatch) -> FakePost:
     fake = FakePost()
     fake.response = FakeResponse(status_code=200)
     monkeypatch.setattr(requests, "get", fake)
+    return fake
+
+
+@pytest.fixture
+def fake_put(monkeypatch: pytest.MonkeyPatch) -> FakePost:
+    """Replace requests.put, so no request is sent."""
+    fake = FakePost()
+    fake.response = FakeResponse(status_code=200)
+    monkeypatch.setattr(requests, "put", fake)
+    return fake
+
+
+@pytest.fixture
+def fake_delete(monkeypatch: pytest.MonkeyPatch) -> FakePost:
+    """Replace requests.delete, so no request is sent."""
+    fake = FakePost()
+    fake.response = FakeResponse(status_code=204)
+    monkeypatch.setattr(requests, "delete", fake)
     return fake

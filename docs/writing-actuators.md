@@ -41,7 +41,7 @@ The same rule applies to module-level constants and global variables.
 
 ### 3. Define helper functions in the function body
 
-`method.py` must define exactly one top-level function. If it defines more than one, `run_actuator` raises `ValueError`. A helper function at module level also does not go to the server.
+`method.py` must define exactly one top-level function. If it defines more than one, `run_actuator` and `Actuator` raise `ValueError`. A helper function at module level also does not go to the server.
 
 Define each helper in the body:
 
@@ -67,21 +67,41 @@ run_actuator("topic-classifier", data={"keywords": ["storm"], "threshold": 2})
 
 ### 5. Return a JSON-compatible value
 
-When you give `dst`, the library sends the output as the `metadata` field of a JSON request. Return types that JSON can encode: `dict`, `list`, `str`, `int`, `float`, `bool` or `None`.
+The function runs in a separate process. The output comes back to your application through `pickle`. When you give `dst`, the library also sends the output as the `metadata` field of a JSON request.
 
-Convert other types before you return them. For example, use `array.tolist()` for a NumPy array.
+Return types that JSON can encode: `dict`, `list`, `str`, `int`, `float`, `bool` or `None`. `pickle` can also serialize these types.
 
-When `dst_save_original=True`, the library also sends `data` as JSON. Thus the input values must also be JSON-compatible.
+Convert other types before you return them. For example, use `array.tolist()` for a NumPy array. If the function returns a NumPy array, your application must also have NumPy, because `pickle` imports the class of the output.
+
+The values in `data` also go to the function through `pickle`. Do not give values that `pickle` cannot serialize, for example a `lambda` or an open file. When `dst_save_original=True`, the library also sends `data` as JSON. Then the values in `data` must also be JSON-compatible.
 
 ### 6. List each requirement
 
 Give each third-party package in `requirements`. Use the pip format, for example `"numpy==2.0.0"` or `"torch>=2.3"`. Use `None` or `[]` if the function needs only the standard library.
 
-`load_actuator` installs the requirements in `nexgen_actuators/{name}/.venv`. But `run_actuator` runs the function in the current process. Install the same packages in the current environment too. See [Architecture](architecture.md#the-actuator-environment).
+`load_actuator` installs the requirements in `nexgen_actuators/{name}/.venv`. `run_actuator` and `Actuator` run the function with the Python of that `.venv`. Thus your application does not need these packages, except for the type of the output (see rule 5). See [Architecture](architecture.md#the-actuator-environment).
 
 ### 7. Add type hints
 
 The decorator sends the type hint and the default value of each parameter as `method_args`. The server stores them, and `load_actuator` writes them to `card.json`. Type hints help other developers call the actuator correctly. They are not required.
+
+### 8. Return each result
+
+The `print()` output of the function does not go to the stdout of your application. The library logs it on the `nexgenpy.manager` logger at the `INFO` level. Put each result that the caller needs in the return value.
+
+## Errors in the function
+
+If the function raises an exception, `run_actuator`, `Actuator.run` and `Actuator.arun` raise `RuntimeError`. The message of the `RuntimeError` contains the traceback of the original exception.
+
+The caller cannot catch the original exception type, for example `KeyError`. To give an expected error to the caller, return it in the output:
+
+```python
+def classify(keywords: list[str]) -> dict:
+    if not keywords:
+        return {"label": None, "error": "no keywords"}
+
+    return {"label": "weather" if "storm" in keywords else "other", "error": None}
+```
 
 ## Versions
 
@@ -107,5 +127,6 @@ Then the receiver can call `run_actuator(name, data=received)` with the received
 - [ ] All helper functions and constants are in the function body.
 - [ ] The parameter names match the keys of the input data.
 - [ ] The return value is JSON-compatible.
+- [ ] The return value holds each result. The function does not use `print()` for results.
 - [ ] `requirements` lists each third-party package.
 - [ ] The version string is new.
