@@ -8,9 +8,8 @@ import pydantic
 import pytest
 import requests
 
-from nexgenpy.actuators import DEFAULT_BASE_URL
 from nexgenpy.schema import DataList, DataOut
-from nexgenpy.wrappers import Data
+from nexgenpy.wrappers import DEFAULT_BASE_URL, Data
 
 BASE_URL = "https://nexgen.example/api/v1"
 DATA_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -38,7 +37,7 @@ def list_body(*items: dict[str, Any], total: int | None = None) -> dict[str, Any
 
 @pytest.fixture(autouse=True)
 def base_url(monkeypatch: pytest.MonkeyPatch) -> str:
-    """The wrappers have no default base URL, so every test sets one."""
+    """Send every request to a known base URL instead of the default."""
     monkeypatch.setenv("NEXGEN_BASE_URL", BASE_URL)
     return BASE_URL
 
@@ -87,6 +86,30 @@ def id_endpoint(request: pytest.FixtureRequest):
 
 
 # --- behaviour shared by every method --------------------------------------
+
+
+def test_base_url_from_environment(endpoint):
+    send, fake = endpoint
+    send()
+    assert fake.last["url"].startswith(f"{BASE_URL}/data")
+
+
+def test_base_url_falls_back_to_default(endpoint, monkeypatch):
+    monkeypatch.delenv("NEXGEN_BASE_URL")
+    send, fake = endpoint
+    send()
+    assert fake.last["url"].startswith(f"{DEFAULT_BASE_URL}/data")
+
+
+@pytest.mark.parametrize(
+    ("method", "kwargs", "fake_name"),
+    ENDPOINTS,
+    ids=[e[0] for e in ENDPOINTS],
+)
+def test_method_can_be_called_on_an_instance(request, method, kwargs, fake_name):
+    fake = fake_for(request, method, fake_name)
+    getattr(Data(), method)(**kwargs)
+    assert len(fake.calls) == 1
 
 
 def test_api_key_header_from_environment(endpoint, monkeypatch):
@@ -144,47 +167,6 @@ def test_connection_error_propagates(endpoint):
         send()
 
 
-# --- known bugs --------------------------------------------------------------
-# These xfail until wrappers.py is fixed. strict=True turns a fix into a
-# failure, as a reminder to remove the marker.
-
-
-@pytest.mark.xfail(strict=True, reason="wrappers have no DEFAULT_BASE_URL fallback")
-def test_base_url_falls_back_to_default(endpoint, monkeypatch):
-    monkeypatch.delenv("NEXGEN_BASE_URL")
-    send, fake = endpoint
-    send()
-    assert fake.last["url"].startswith(f"{DEFAULT_BASE_URL}/data")
-
-
-@pytest.mark.parametrize(
-    ("method", "kwargs", "fake_name"),
-    [
-        pytest.param(
-            *entry,
-            id=entry[0],
-            marks=pytest.mark.xfail(strict=True, reason="missing @staticmethod")
-            if entry[0] == "delete_data"
-            else (),
-        )
-        for entry in ENDPOINTS
-    ],
-)
-def test_method_can_be_called_on_an_instance(request, method, kwargs, fake_name):
-    fake = fake_for(request, method, fake_name)
-    getattr(Data(), method)(**kwargs)
-    assert len(fake.calls) == 1
-
-
-@pytest.mark.xfail(strict=True, reason="quote() keeps '.', so these leave /data/")
-@pytest.mark.parametrize("data_id", ["", ".", ".."])
-def test_path_segment_data_id_is_rejected(id_endpoint, data_id: str):
-    send, fake = id_endpoint
-    with pytest.raises(ValueError):
-        send(data_id=data_id)
-    assert fake.calls == []
-
-
 # --- data_id handling (get_data, update_data, delete_data) -------------------
 
 
@@ -212,6 +194,15 @@ def test_data_id_is_escaped(id_endpoint, data_id: str, escaped: str):
 
 @pytest.mark.parametrize("data_id", [123, None, b"id"])
 def test_invalid_data_id_raises_before_request(id_endpoint, data_id: Any):
+    send, fake = id_endpoint
+    with pytest.raises(ValueError, match="data_id is invalid"):
+        send(data_id=data_id)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("data_id", ["", ".", ".."])
+def test_path_segment_data_id_is_rejected(id_endpoint, data_id: str):
+    """quote() keeps ".", so these would leave /data/{data_id}."""
     send, fake = id_endpoint
     with pytest.raises(ValueError, match="data_id is invalid"):
         send(data_id=data_id)

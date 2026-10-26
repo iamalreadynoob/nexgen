@@ -14,6 +14,8 @@ from .schema import DataList, DataOut
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_BASE_URL = "http://localhost:8000/api/v1"
+
 
 class Data:
     """The wrapper for data endpoints."""
@@ -75,7 +77,7 @@ class Data:
             params["actuator_id"] = actuator_id
 
         result = requests.get(
-            f"{os.getenv('NEXGEN_BASE_URL')}/data",
+            f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/data",
             headers={
                 "X-API-KEY": os.getenv("NEXGEN_API_KEY"),
             },
@@ -138,7 +140,7 @@ class Data:
             raise ValueError("Timeout is invalid, it has to be int")
 
         result = requests.post(
-            f"{os.getenv('NEXGEN_BASE_URL')}/data",
+            f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/data",
             headers={
                 "X-API-KEY": os.getenv("NEXGEN_API_KEY"),
             },
@@ -176,6 +178,11 @@ class Data:
             logger.error("data_id is invalid, it has to be str")
             raise ValueError("data_id is invalid, it has to be str")
 
+        # quote() keeps ".", so these would leave /data/{data_id}
+        if data_id in ("", ".", ".."):
+            logger.error("data_id is invalid, it can not be empty, '.' or '..'")
+            raise ValueError("data_id is invalid, it can not be empty, '.' or '..'")
+
         if isinstance(timeout, int) is False:
             logger.error("Timeout is invalid, it has to be int")
             raise ValueError("Timeout is invalid, it has to be int")
@@ -183,7 +190,7 @@ class Data:
         data_id = quote(data_id, safe="")
 
         result = requests.get(
-            f"{os.getenv('NEXGEN_BASE_URL')}/data/{data_id}",
+            f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/data/{data_id}",
             headers={
                 "X-API-KEY": os.getenv("NEXGEN_API_KEY"),
             },
@@ -219,6 +226,11 @@ class Data:
             logger.error("data_id is invalid, it has to be str")
             raise ValueError("data_id is invalid, it has to be str")
 
+        # quote() keeps ".", so these would leave /data/{data_id}
+        if data_id in ("", ".", ".."):
+            logger.error("data_id is invalid, it can not be empty, '.' or '..'")
+            raise ValueError("data_id is invalid, it can not be empty, '.' or '..'")
+
         if linked_resource is not None and isinstance(linked_resource, str) is False:
             logger.error("Linked Resource is invalid, it has to be str")
             raise ValueError("Linked Resource is invalid, it has to be str")
@@ -242,7 +254,7 @@ class Data:
             update_dict["specs"] = specs
 
         result = requests.put(
-            f"{os.getenv('NEXGEN_BASE_URL')}/data/{data_id}",
+            f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/data/{data_id}",
             headers={
                 "X-API-KEY": os.getenv("NEXGEN_API_KEY"),
             },
@@ -255,6 +267,7 @@ class Data:
         result = result.json()
         return DataOut.model_validate(result)
 
+    @staticmethod
     def delete_data(
         data_id: str,
         timeout: int = 60,
@@ -271,6 +284,11 @@ class Data:
             logger.error("data_id is invalid, it has to be str")
             raise ValueError("data_id is invalid, it has to be str")
 
+        # quote() keeps ".", so these would leave /data/{data_id}
+        if data_id in ("", ".", ".."):
+            logger.error("data_id is invalid, it can not be empty, '.' or '..'")
+            raise ValueError("data_id is invalid, it can not be empty, '.' or '..'")
+
         if isinstance(timeout, int) is False:
             logger.error("Timeout is invalid, it has to be int")
             raise ValueError("Timeout is invalid, it has to be int")
@@ -278,7 +296,7 @@ class Data:
         data_id = quote(data_id, safe="")
 
         result = requests.delete(
-            f"{os.getenv('NEXGEN_BASE_URL')}/data/{data_id}",
+            f"{os.getenv('NEXGEN_BASE_URL', DEFAULT_BASE_URL)}/data/{data_id}",
             headers={
                 "X-API-KEY": os.getenv("NEXGEN_API_KEY"),
             },
