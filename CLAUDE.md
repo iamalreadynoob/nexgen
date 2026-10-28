@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`nexgenpy` is a Python (>=3.12) client library for a separate Nexgen API server ("Post Shannon Communication for every day systems"). The server is not in this repo. There is no README yet; `pyproject.toml` references a `README.md` that does not exist.
+`nexgenpy` is a Python (>=3.12) client library for a separate Nexgen API server ("Post Shannon Communication for every day systems"). The server is not in this repo.
 
 ## Commands
 
@@ -35,9 +35,10 @@ The library is about **actuators**: single Python functions whose source code is
   - `load_actuator` calls `GET {NEXGEN_BASE_URL}/actuators/{name}/latest` and writes the result to `{actuators_dir}/{name}/`. The directory gets `card.json` (metadata including the server `id`), `method.py` (the source) and `requirements.txt`. It then creates a per-actuator `.venv` there and pip-installs the requirements.
   - `run_actuator` imports `method.py` with `importlib`. The file must define **exactly one** top-level function. It calls that function with `**data`. If `dst` is given, it also sends `POST {dst}/data` with `{actuator_id, metadata: output}`.
   - The default `actuators_dir` is `nexgen_actuators`, relative to the working directory.
+- **`nexgenpy/wrappers.py`: server wrappers.** The `Data` and `Content` classes have static methods for the `/data` and `/contents` endpoints. Each method checks its arguments, sends the request to `NEXGEN_BASE_URL` with `NEXGEN_API_KEY`, and calls `raise_for_status()`. The methods that read, create or change an item return a model from `nexgenpy/schema.py`. The delete methods return `None`.
 
 Environment variables:
-- `NEXGEN_BASE_URL`: API root. The decorator and `load_actuator` fall back to `http://localhost:8000/api/v1`.
+- `NEXGEN_BASE_URL`: API root. The decorator, `load_actuator` and the `wrappers.py` classes fall back to `http://localhost:8000/api/v1`.
 - `NEXGEN_API_KEY`: sent as the `X-API-KEY` header when set.
 - `NEXGEN_TIMEOUT`: decorator request timeout (default 60).
 

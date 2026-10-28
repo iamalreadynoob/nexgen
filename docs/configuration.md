@@ -1,13 +1,13 @@
 # Configuration
 
-`nexgenpy` reads its server settings from environment variables. The settings for data and content requests are function parameters.
+`nexgenpy` reads its server settings from environment variables. The settings for the `dst` requests of `run_actuator` and `Actuator` are function parameters.
 
 ## Environment variables
 
 | Variable | Default | Used by | Description |
 |---|---|---|---|
-| `NEXGEN_BASE_URL` | `http://localhost:8000/api/v1` | `@actuator`, `load_actuator` | The root URL of the Nexgen Server API, including `/api/v1`. |
-| `NEXGEN_API_KEY` | not set | `@actuator`, `load_actuator` | The API key. When it is set, the library sends it in the `X-API-KEY` header. |
+| `NEXGEN_BASE_URL` | `http://localhost:8000/api/v1` | `@actuator`, `load_actuator`, `Data`, `Content` | The root URL of the Nexgen Server API, including `/api/v1`. |
+| `NEXGEN_API_KEY` | not set | `@actuator`, `load_actuator`, `Data`, `Content` | The API key. When it is set, the library sends it in the `X-API-KEY` header. |
 | `NEXGEN_TIMEOUT` | `60` | `@actuator` | The timeout in seconds for `POST /actuators`. |
 
 The library reads each variable when it sends the request, not at import time. Thus you can change a variable in the same process.
@@ -33,10 +33,11 @@ Nexgen Server needs the `X-API-Key` header on all endpoints except health when t
 |---|---|
 | `POST /actuators` | `NEXGEN_API_KEY` |
 | `GET /actuators/{name}/latest` | `NEXGEN_API_KEY` |
+| `/data` and `/contents` requests of the `Data` and `Content` classes | `NEXGEN_API_KEY` |
 | `POST {dst}/data` | `dst_headers` |
 | `POST {dst}/contents` | `dst_headers` |
 
-The data and content requests do not use `NEXGEN_API_KEY`. The `dst` server can be a different server with a different key. To send data to Nexgen Server, give the key yourself:
+The `dst` requests do not use `NEXGEN_API_KEY`. The `dst` server can be a different server with a different key. To send data to Nexgen Server, give the key yourself:
 
 ```python
 import os
@@ -58,6 +59,7 @@ run_actuator(
 | `POST /actuators` | `NEXGEN_TIMEOUT` environment variable | 60 s |
 | `GET /actuators/{name}/latest` | `load_timeout` parameter of `load_actuator` | 60 s |
 | `POST {dst}/data`, `POST {dst}/contents` | `dst_timeout` parameter of `run_actuator` and `Actuator` | 60 s |
+| `/data` and `/contents` requests of the `Data` and `Content` classes | `timeout` parameter of each method | 60 s |
 
 The venv and pip steps of `load_actuator` have no timeout. A run of the actuator function also has no timeout.
 
@@ -88,6 +90,7 @@ Use the same `actuators_dir` for `load_actuator` and for `run_actuator`.
 |---|---|
 | `nexgenpy.actuators` | Registration requests and `NEXGEN_TIMEOUT` warnings |
 | `nexgenpy.manager` | Load steps, actuator runs, data requests and content uploads |
+| `nexgenpy.wrappers` | Invalid arguments of the `Data` and `Content` methods |
 
 | Level | Examples |
 |---|---|

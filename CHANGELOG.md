@@ -5,7 +5,7 @@ All notable changes to this project are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- changelog-skill: last-documented-commit 455aab3705fbce52a5d681846925c828c440e030 -->
+<!-- changelog-skill: last-documented-commit ec012c68aa251627ea0f9f271769f69ed5b05e44 -->
 
 ## [Unreleased]
 
@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DataOut` and `DataList` models in `nexgenpy.schema` for the data items that the server returns.
 - `Data` methods raise `requests.HTTPError` when the server returns an error status.
 - `Data` methods reject a `data_id` that is empty, `.` or `..`.
+- `Content` class in `nexgenpy.wrappers` that reads and changes the content items on the server.
+- `Content.get_content_list` method that returns a page of content items from `GET /contents` as a `ContentList`.
+- `page`, `limit`, `ascending` and `actuator_id` arguments of `Content.get_content_list` that filter and sort the content items.
+- `Content.create_content` method that creates a content item with `POST /contents`.
+- `Content.get_content` method that returns one content item from `GET /contents/{content_id}`.
+- `Content.update_specs` method that merges new keys into the `specs` of a content item with `PUT /contents/{content_id}/specs`.
+- `Content.delete_content` method that removes a content item with `DELETE /contents/{content_id}`.
+- `ContentOut` and `ContentList` models in `nexgenpy.schema` for the content items that the server returns.
+- `Content` methods raise `requests.HTTPError` when the server returns an error status.
+- `Content` methods reject a `content_id` that is empty, `.` or `..`.
 
 ### Changed
 

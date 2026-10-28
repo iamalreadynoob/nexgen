@@ -44,3 +44,34 @@ class DataList(BaseModel):
     data: List[DataOut] = Field(
         description="The data list",
     )
+
+
+class ContentOut(BaseModel):
+    """# Content Out."""
+
+    id: str = Field(
+        description="Content ID information",
+    )
+    identifier: str = Field(
+        description="The identifier for the content.",
+    )
+    specs: Dict[str, Any] | None = Field(
+        description="Extra information about the content.",
+    )
+    created_at: datetime = Field(
+        description="The created time for the content.",
+    )
+    updated_at: datetime = Field(
+        description="The last updated time for the content.",
+    )
+
+
+class ContentList(BaseModel):
+    """# Content List."""
+
+    total: int = Field(
+        description="Total content count",
+    )
+    data: List[ContentOut] = Field(
+        description="The content list",
+    )

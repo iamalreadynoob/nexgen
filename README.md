@@ -212,8 +212,8 @@ nexgen_actuators/
 
 ### Shared rules
 
-- All requests go to `NEXGEN_BASE_URL`, or to `dst` for data and content items.
-- The library sends the `X-API-KEY` header when `NEXGEN_API_KEY` is set. Data and content requests use `dst_headers` instead.
+- `run_actuator` and `Actuator` send data and content items to `dst`. All other requests go to `NEXGEN_BASE_URL`.
+- The library sends the `X-API-KEY` header when `NEXGEN_API_KEY` is set. The requests to `dst` use `dst_headers` instead.
 - The server accepts a data item only from the **latest** version of an actuator. Load the actuator again after someone publishes a new version.
 
 [Concepts](docs/concepts.md) gives more detail about SemCom and about how `nexgenpy` fits a SemCom pipeline.
