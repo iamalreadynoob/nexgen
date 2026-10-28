@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/iamalreadynoob/nexgen/actions/workflows/ci.yml/badge.svg)](https://github.com/iamalreadynoob/nexgen/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.0-informational)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-1.0.1-informational)](pyproject.toml)
 [![Nexgen Server](https://img.shields.io/badge/server-nexgen--server-009688?logo=github&logoColor=white)](https://github.com/iamalreadynoob/nexgen-server)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
